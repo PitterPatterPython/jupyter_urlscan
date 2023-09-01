@@ -13,7 +13,7 @@ import datetime
 from IPython.core.magic import (Magics, magics_class, line_magic, cell_magic, line_cell_magic)
 from IPython.core.display import HTML
 from io import StringIO
-from requests import Session
+from requests import Request, Session
 
 from urlscan_core._version import __desc__
 from jupyter_integrations_utility.batchquery import df_expand_col
@@ -46,7 +46,7 @@ class Urlscan(Integration):
     myopts['urlscan_conn_default'] = ["default", "Default instance to connect with"]
     myopts['urlscan_verify_ssl'] = [True, "Verify integrity of SSL"]
     myopts['urlscan_rate_limit'] = [True, "Limit rates based on URLScan user configuration"]
-    myopts['urlscan_submission_visiblity'] = ["private", "Default visiblity for submissions to URLScan."]
+    myopts['urlscan_submission_visiblity'] = ["public", "Default visiblity for submissions to URLScan."]
     myopts['urlscan_submission_country'] = ["US","The country from which the scan should be performed"]
     myopts['urlscan_submission_referer'] = [None, "Override the HTTP referer for this scan"]
     myopts['urlscan_submission_useragent'] = [None, "Override useragent for this scan"]
@@ -123,7 +123,7 @@ class Urlscan(Integration):
             mypass = ""
             if inst['enc_pass'] is not None:
                 mypass = self.ret_dec_pass(inst['enc_pass'])
-                inst['session'].headers={'API-Key':mypass,'Content-Type':'application/json'}
+                inst['session'].headers.update({'API-Key':mypass,'Content-Type':'application/json'})
             ssl_verify = self.opts['urlscan_verify_ssl'][0]
             if isinstance(ssl_verify, str) and ssl_verify.strip().lower() in ['true', 'false']:
                 if ssl_verify.strip().lower() == 'true':
@@ -183,6 +183,8 @@ class Urlscan(Integration):
             print(f"Endpoint: {ep}")
             print(f"Endpoint Data: {ep_data}")
             print(f"Endpoint API Transform: {ep_api}")
+            print("Session headers")
+            print(self.instances[instance]['session'].headers)
         mydf = None
         status = ""
         str_err = ""
@@ -198,7 +200,10 @@ class Urlscan(Integration):
             if ep_api == "/search/?q=":
                 myres=self.instances[instance]['session'].get(f'{self.base_url}{ep_api}{ep_data}')
             elif ep_api == "/scan/":
-                data={"url":ep_data,"visibility":self.opts['urlscan_submission_visiblity'][0]}
+                data={"url":ep_data.strip(),"visibility":self.opts['urlscan_submission_visiblity'][0]}
+                if self.debug:
+                    print("Scanning the following submit data")
+                    print(data)
                 if self.opts['urlscan_submission_country'][0]:
                     data.update({"country":self.opts['urlscan_submission_country'][0]})
                 else:
@@ -207,7 +212,13 @@ class Urlscan(Integration):
                     data.update({"customagent":self.opts['urlscan_submission_useragent'][0]})
                 if self.opts['urlscan_submission_referer'][0]:
                     data.update({"referer":self.opts['urlscan_submission_referer'][0]})
-                myres = self.instances[instance]['session'].post(f'{self.base_url}{ep_api}',data=json.dumps(ep_data))
+                req = Request('POST', f'{self.base_url}{ep_api}', headers=self.instances[instance]['session'].headers,data=data)
+                staged = req.prepare()
+                print(staged)
+                print(staged.headers)
+                print(staged.body)
+                myres = self.instances[instance]['session'].send(staged,verify=self.opts['urlscan_verify_ssl'][0])
+                #myres = self.instances[instance]['session'].post(f'{self.base_url}{ep_api}',data=json.dumps(ep_data))
             elif ep_api == "/result/":
                 myres = self.instances[instance]['session'].get(f'{self.base_url}{ep_api}{ep_data}')
             elif ep_api == "/dom/":
@@ -227,10 +238,6 @@ class Urlscan(Integration):
             pass
         else:
             status = "Failure - query_error: " + str_err
-            if self.debug:
-                print(myres.status_code)
-                print(myres.text)
-                print(myres.headers)
 
         return mydf, status
 
