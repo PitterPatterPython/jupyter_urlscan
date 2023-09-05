@@ -25,6 +25,9 @@ import ipywidgets as widgets
 
 ##custom to urlscan integration
 import random
+import time
+from time import strftime, localtime
+import jmespath
 
 @magics_class
 class Urlscan(Integration):
@@ -125,7 +128,7 @@ class Urlscan(Integration):
             mypass = ""
             if inst['enc_pass'] is not None:
                 mypass = self.ret_dec_pass(inst['enc_pass'])
-                inst['session'].headers.update({'API-Key':mypass,'Content-Type':'application/json'})
+                inst['session'].headers.update({'API-Key':mypass})
             ssl_verify = self.opts['urlscan_verify_ssl'][0]
             if isinstance(ssl_verify, str) and ssl_verify.strip().lower() in ['true', 'false']:
                 if ssl_verify.strip().lower() == 'true':
@@ -176,6 +179,28 @@ class Urlscan(Integration):
                 bRun = True
         return bRun
 
+    def _apiResultParser(self, scan_result):
+        if self.debug:
+            print('_apiresultParser')
+            print(type(scan_result))
+        parsed = {}
+        parsed.update({"page":[jmespath.search("page",scan_result.json())]})
+        parsed.update({"uuid":[jmespath.search("task.uuid",scan_result.json())]})
+        parsed.update({"report_url":[jmespath.search("task.reportURL",scan_result.json())]})
+        parsed.update({"verdicts":[jmespath.search("verdicts.overall",scan_result.json())]})
+        parsed.update({"cookies":[jmespath.search("data.cookies[*].[domain,name,value]",scan_result.json())]})
+        parsed.update({"embedded_links":[jmespath.search("data.links",scan_result.json())]})
+        parsed.update({"rdns":[jmespath.search("meta.processors.rdns",scan_result.json())]})
+        parsed.update({"certificate":[[(record[0], record[1], strftime('%H:%M:%S %m/%d/%Y',localtime(record[2]))) for record in jmespath.search("lists.certificates[].[subjectName,issuer,validTo]",scan_result.json())]]})
+        parsed.update({"tls_stats":[jmespath.search("stats.tlsStats",scan_result.json())]})
+        parsed.update({"protocol_stats":[jmespath.search("stats.protocolStats", scan_result.json())]})
+        parsed.update({'global_strings':[jmespath.search("data.globals[?type=='string'].[prop]",scan_result.json())]})
+        parsed.update({'global_functions':[jmespath.search("data.globals[?type=='function'].[prop]",scan_result.json())]})
+        parsed.update({'global_objects':[jmespath.search("data.globals[?type=='object'].[prop]",scan_result.json())]})
+        parsed.update({'global_booleans':[jmespath.search("data.globals[?type=='boolean'].[prop]",scan_result.json())]})
+        parsed.update({'domain_stats':[jmespath.search("stats.domainStats", scan_result.json())]})
+        parsed.update({'submitter':[jmespath.search("submitter", scan_result.json())]})
+        return parsed
 
     def customQuery(self, query, instance, reconnect=True):
         
@@ -227,20 +252,10 @@ class Urlscan(Integration):
                 print("UNPOSSPIBLE -- I don't support this method type for this intergration!")
                 print(api_method)
             ##
-            ## Stage the request then send it! 
+            ## Send the request then send it! 
             ##
-            req = Request(self.apis[ep]['method'],api_url,json=post_data)
-            staged = req.prepare()
-            if self.debug:
-                print("!! Staged request is as follows !!")
-                print("<HEADERS>")
-                print(staged.headers)
-                print("<BODY>")
-                print(staged.body)
-                print("<URL>")
-                print(staged.url)
 
-            myres = self.instances[instance]['session'].send(staged,verify=self.opts['urlscan_verify_ssl'][0])
+            myres = self.instances[instance]['session'].request(self.apis[ep]['method'],api_url,json=post_data, verify=self.opts['urlscan_verify_ssl'][0])
 
             ##
             # Begin processing the requests response from the webservice
@@ -250,7 +265,11 @@ class Urlscan(Integration):
             str_err = "Success - No Results"
 
             if myres.status_code>=200 and myres.status_code<300:
-                mydf = pd.DataFrame(myres)
+                if 'result' in myres.url:
+                    mydf = pd.DataFrame(self._apiResultParser(myres))
+                    str_err = "Success - results in mydf"
+                else:
+                    mydf = pd.DataFrame.from_records([(k,v) for k,v in myres.json().items()]).T
                 str_err = f"Success {str(myres.status_code)}"
             elif myres.status_code>=300 and myres.status_code<400:
                 print(f"Response Code:{str(myres.status_code)}")
@@ -269,6 +288,7 @@ class Urlscan(Integration):
             elif myres.status_code>=400:
                 if 'screenshot' in myres.url and myres.status_code==404: 
                     print("Wait 10-30 minutes after submission and the service will likely have your screenshot ready")
+                    print("If the scan is finished (check 'endpoint') AND dom/screenshot is still 404, URLScan didn't recover them.")
                     str_err = "Standby"
                 elif myres.status_code==429:
                     print(f"URLScan returned HTTP {str(myres.status_code)}")
@@ -277,6 +297,9 @@ class Urlscan(Integration):
                     if myres.headers.get('Retry-After'):
                         wait_period = myres.headers.get('Retry-After')
                         print(f"Retry after {str(wait_period)} seconds...")
+                elif 'result' in myres.url and myres.status_code==404:
+                    print("Wait 2-5 minutes and check back, URLScan still processing")
+                    str_err = "Standby"
                 else:
                     print(f"URLScan returned  HTTP {str(myres.status_code)}\n")
                     print(f"{str(myres.text)}\n")
