@@ -25,9 +25,10 @@ import ipywidgets as widgets
 
 ##custom to urlscan integration
 import random
-import time
 from time import strftime, localtime
 import jmespath
+from PIL import Image
+from io import BytesIO
 
 @magics_class
 class Urlscan(Integration):
@@ -64,8 +65,31 @@ class Urlscan(Integration):
     other_base_url = "https://urlscan.io"
 
     apis = {
-            "scan": {'url':base_url,'path': "/scan/", 'method':'POST'},
-            "result": {'url':base_url,'path':"/result/", 'method':'GET'},
+            "scan": {'url':base_url,'path': "/scan/", 'method':'POST','parsers':[]},
+            "result": {
+                'url':base_url,
+                'path':"/result/",
+                'method':'GET',
+                ## column_name & column_value as jmespath valid string
+                'parsers':[
+                    ("page","page"),
+                    ("uuid","task.uuid"),
+                    ("report_url","task.reportURL"),
+                    ("verdicts","verdicts.overall"),
+                    ("cookies","data.cookies[*].[domain,name,value]"),
+                    ("embedded_links","data.links"),
+                    ("rdns","meta.processors.rdns.data[]"),
+                    ("certificates","lists.certificates[].[subjectName,issuer,validTo]"),
+                    ("tls_stats","stats.tlsStats"),
+                    ("protocol_stats","stats.protocolStats"),
+                    ("global_strings","data.globals[?type=='string'].[prop]"),
+                    ("global_functions","data.globals[?type=='function'].[prop]"),
+                    ("global_objects","data.globals[?type=='object'].[prop]"),
+                    ("global_booleans","data.globals[?type=='boolean'].[prop]"),
+                    ("domain_stats","stats.domainStats"),
+                    ("submitter","submitter")
+                ]
+            },
             "screenshot": {'url':other_base_url, 'path':'/screenshot/','method':'GET'},
             "dom": {'url':other_base_url, 'path':"/dom/", 'method':'GET'},
             "search": {'url':base_url, 'path':"/search/?q=", 'method':'GET'}
@@ -179,27 +203,35 @@ class Urlscan(Integration):
                 bRun = True
         return bRun
 
-    def _apiResultParser(self, scan_result):
+    def _apiDOMDownload(self, response, uuid="tmp"):
         if self.debug:
-            print('_apiresultParser')
+            print('_apiDOMDownload')
+            print(parsers)
+        f = open(f"dom_{uuid}.txt","w")
+        try:
+            f.write(response.content)
+        except Exception as e:
+            print(f"An error has occured:\nstr(e)")
+        finally:
+            f.flush()
+            f.close()
+        return 
+
+    def _apiDisplayScreenshot(self, response):
+        if self.debug:
+            print('_apiDisplayScreenshot')
+        img = Image.open(BytesIO(response.content))
+        display(img)
+        return 
+
+    def _apiResultParser(self, scan_result, parsers):
+        if self.debug:
+            print('_apiResultParser')
             print(type(scan_result))
+            print(parsers)
         parsed = {}
-        parsed.update({"page":[jmespath.search("page",scan_result.json())]})
-        parsed.update({"uuid":[jmespath.search("task.uuid",scan_result.json())]})
-        parsed.update({"report_url":[jmespath.search("task.reportURL",scan_result.json())]})
-        parsed.update({"verdicts":[jmespath.search("verdicts.overall",scan_result.json())]})
-        parsed.update({"cookies":[jmespath.search("data.cookies[*].[domain,name,value]",scan_result.json())]})
-        parsed.update({"embedded_links":[jmespath.search("data.links",scan_result.json())]})
-        parsed.update({"rdns":[jmespath.search("meta.processors.rdns",scan_result.json())]})
-        parsed.update({"certificate":[[(record[0], record[1], strftime('%H:%M:%S %m/%d/%Y',localtime(record[2]))) for record in jmespath.search("lists.certificates[].[subjectName,issuer,validTo]",scan_result.json())]]})
-        parsed.update({"tls_stats":[jmespath.search("stats.tlsStats",scan_result.json())]})
-        parsed.update({"protocol_stats":[jmespath.search("stats.protocolStats", scan_result.json())]})
-        parsed.update({'global_strings':[jmespath.search("data.globals[?type=='string'].[prop]",scan_result.json())]})
-        parsed.update({'global_functions':[jmespath.search("data.globals[?type=='function'].[prop]",scan_result.json())]})
-        parsed.update({'global_objects':[jmespath.search("data.globals[?type=='object'].[prop]",scan_result.json())]})
-        parsed.update({'global_booleans':[jmespath.search("data.globals[?type=='boolean'].[prop]",scan_result.json())]})
-        parsed.update({'domain_stats':[jmespath.search("stats.domainStats", scan_result.json())]})
-        parsed.update({'submitter':[jmespath.search("submitter", scan_result.json())]})
+        for expression in parsers:
+            parsed.update({expression[0]:[jmespath.search(expression[1],scan_result.json())]})
         return parsed
 
     def customQuery(self, query, instance, reconnect=True):
@@ -266,8 +298,13 @@ class Urlscan(Integration):
 
             if myres.status_code>=200 and myres.status_code<300:
                 if 'result' in myres.url:
-                    mydf = pd.DataFrame(self._apiResultParser(myres))
-                    str_err = "Success - results in mydf"
+                    mydf = pd.DataFrame(self._apiResultParser(myres,self.apis[ep]['parsers']))
+                elif 'screenshot' in myres.url or 'dom' in myres.url:
+                    self._apiDisplayScreenshot(myres)
+                    mydf=[]
+                elif 'dom' in myres.url:
+                    self._apiDOMDownload(myres)
+                    mydf=[]
                 else:
                     mydf = pd.DataFrame.from_records([(k,v) for k,v in myres.json().items()]).T
                 str_err = f"Success {str(myres.status_code)}"
@@ -300,10 +337,10 @@ class Urlscan(Integration):
                 elif 'result' in myres.url and myres.status_code==404:
                     print("Wait 2-5 minutes and check back, URLScan still processing")
                     str_err = "Standby"
-                else:
-                    print(f"URLScan returned  HTTP {str(myres.status_code)}\n")
-                    print(f"{str(myres.text)}\n")
-                    str_err = "Error"
+            else:
+                print(f"URLScan returned  HTTP {str(myres.status_code)}\n")
+                print(f"{str(myres.text)}\n")
+                str_err = "Error"
             ##
             # Rate limit parsing (specific to URLScan)
             ##
