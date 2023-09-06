@@ -27,8 +27,8 @@ import ipywidgets as widgets
 import random
 from time import strftime, localtime
 import jmespath
-from PIL import Image
 from io import BytesIO
+import base64
 
 @magics_class
 class Urlscan(Integration):
@@ -90,7 +90,7 @@ class Urlscan(Integration):
                     ("submitter","submitter")
                 ]
             },
-            "screenshot": {'url':other_base_url, 'path':'/screenshot/','method':'GET'},
+            "screenshot": {'url':other_base_url, 'path':'/screenshots/','method':'GET'},
             "dom": {'url':other_base_url, 'path':"/dom/", 'method':'GET'},
             "search": {'url':base_url, 'path':"/search/?q=", 'method':'GET'}
             }
@@ -203,26 +203,46 @@ class Urlscan(Integration):
                 bRun = True
         return bRun
 
-    def _apiDOMDownload(self, response, uuid="tmp"):
+    def _apiDOMDownload(self, response, uuid):
         if self.debug:
             print('_apiDOMDownload')
-            print(parsers)
-        f = open(f"dom_{uuid}.txt","w")
-        try:
-            f.write(response.content)
-        except Exception as e:
-            print(f"An error has occured:\nstr(e)")
-        finally:
-            f.flush()
-            f.close()
-        return 
+            print(response)
+            print(uuid)
+        status = -1
+        if os.access('.', os.W_OK):
+            f = open(f"dom_{uuid}.txt","wb")
+            try:
+                f.write(response.content)
+            except Exception as e:
+                print(f"An error has occured:\n{str(e)}")
+                print(status=-2)
+            finally:
+                f.flush()
+                f.close()
+                status = 0
+        else:
+            print("Please check that you are in a writeable directory before making this request.") 
+        return status 
 
     def _apiDisplayScreenshot(self, response):
+        status = 0
         if self.debug:
             print('_apiDisplayScreenshot')
-        img = Image.open(BytesIO(response.content))
-        display(img)
-        return 
+            print(f"Lenght of content to write: {str(len(response.content))}")
+            print("Response content first 100 characters")
+            print(f"Print {response.content[0:100]}")
+        b64_img = base64.b64encode(response.content).decode()
+        try:
+            output = f"""
+                <img
+                    src="data:image/png;base64,{b64_img}"
+                />
+            """
+            display(HTML(output))
+        except Exception as e:
+            print(f"An error with PIL occured: {str(e)}")
+            status = -1
+        return status
 
     def _apiResultParser(self, scan_result, parsers):
         if self.debug:
@@ -276,10 +296,12 @@ class Urlscan(Integration):
             ##
             ##Building the request URL
             ##
-            if self.apis[ep]['method']=='POST':
-                api_url=f"{self.apis[ep]['url']}{self.apis[ep]['path']}"
-            elif self.apis[ep]['method']=='GET':
-                api_url=f"{self.apis[ep]['url']}{self.apis[ep]['path']}{ep_data}"
+            if self.apis[ep.lower()]['method']=='POST':
+                api_url=f"{self.apis[ep.lower()]['url']}{self.apis[ep.lower()]['path']}"
+            elif self.apis[ep.lower()]['method']=='GET':
+                api_url=f"{self.apis[ep.lower()]['url']}{self.apis[ep.lower()]['path']}{ep_data}"
+                if ep.lower()=='screenshot':
+                    api_url=api_url+'.png'
             else:#people shouldn't be using custom methods / delete, head, PUT
                 print("UNPOSSPIBLE -- I don't support this method type for this intergration!")
                 print(api_method)
@@ -299,34 +321,42 @@ class Urlscan(Integration):
             if myres.status_code>=200 and myres.status_code<300:
                 if 'result' in myres.url:
                     mydf = pd.DataFrame(self._apiResultParser(myres,self.apis[ep]['parsers']))
-                elif 'screenshot' in myres.url or 'dom' in myres.url:
+                elif 'screenshot' in myres.url:
+                    mydf = pd.DataFrame()
                     self._apiDisplayScreenshot(myres)
-                    mydf=[]
                 elif 'dom' in myres.url:
-                    self._apiDOMDownload(myres)
-                    mydf=[]
+                    self._apiDOMDownload(myres, ep_data)
+                    mydf = pd.DataFrame()
                 else:
                     mydf = pd.DataFrame.from_records([(k,v) for k,v in myres.json().items()]).T
                 str_err = f"Success {str(myres.status_code)}"
+
             elif myres.status_code>=300 and myres.status_code<400:
+                mydf = pd.DataFrame()
                 print(f"Response Code:{str(myres.status_code)}")
                 str_err = f"Status {str(myres.status_code)}"
                 if myres.status_code==301 or myres.status_code==302:
                     redirect_link = myres.headers.get('Location')
+
+                    ## check if we got a rediriect link , follow it
                     if not redirect_link:
                         print("No redirect link given")
                         str_err = f"Error, 'Location' header not found in list of headers: {myres.headers.keys()}"
-                    else:
+                        mydf
+                    else: 
                         redir_response = self.instances[instance]['session'].get(redirect_link,verify=self.opts['urlscan_verify_ssl'][0])
-                        mydf = pd.DataFrame(redir_response.json()['data'])
+                        mydf = pd.DataFrame(_apiResponseParse(redir_response.json()['data']))
                         str_err = f"Success after redirect to {redir_response.url} HTTP {str(myres.status_code)}"
                 if self.debug:
                     print(myres.text)
+                str_err = f"Error, HTTP code {str(myres.status_code)} Error Text\n{myres.text}"
             elif myres.status_code>=400:
+                mydf = pd.DataFrame()
                 if 'screenshot' in myres.url and myres.status_code==404: 
-                    print("Wait 10-30 minutes after submission and the service will likely have your screenshot ready")
-                    print("If the scan is finished (check 'endpoint') AND dom/screenshot is still 404, URLScan didn't recover them.")
-                    str_err = "Standby"
+                    print("You got a 404:")
+                    print("#1 Make sure the UUID you entered for the resource is correct.")
+                    print("#2 If not #1, Wait .5 - 2 minutes for the service to make your screenshot ready")
+                    str_er = "Error, HTTP {str(myres.status_code)} {myres.text}"
                 elif myres.status_code==429:
                     print(f"URLScan returned HTTP {str(myres.status_code)}")
                     print("Too Many requests -- The user has sent too many requests")
@@ -337,10 +367,13 @@ class Urlscan(Integration):
                 elif 'result' in myres.url and myres.status_code==404:
                     print("Wait 2-5 minutes and check back, URLScan still processing")
                     str_err = "Standby"
+                else:
+                    str_err = f"Error HTTP Code {str(myres.status_code)} {myres.json().get('message')}"
             else:
                 print(f"URLScan returned  HTTP {str(myres.status_code)}\n")
                 print(f"{str(myres.text)}\n")
                 str_err = "Error"
+                mydf = pd.DataFrame()
             ##
             # Rate limit parsing (specific to URLScan)
             ##
@@ -355,7 +388,7 @@ class Urlscan(Integration):
                 print("If this request was a 'private' submission, you can switch to use 'unlisted' to work around this quota.")
 
         except Exception as e:
-            mydf = None
+            mydf = pd.DataFrame()
             str_err = str(e)
             print(str_err)
 
