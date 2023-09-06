@@ -132,6 +132,11 @@ class Urlscan(Integration):
 
         return out
 
+    #This function stops the integration for prompting you for username
+    def req_username(self, instance):
+        bAuth=False
+        return bAuth
+
     def customAuth(self, instance):
         result = -1
         inst = None
