@@ -1,4 +1,4 @@
-# jupyter_URLScan.io
+# jupyter_URLScan
 A module to help interaction with Jupyter Notebooks and URLScan.io API
 
 ------
