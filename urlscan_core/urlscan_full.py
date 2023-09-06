@@ -315,6 +315,8 @@ class Urlscan(Integration):
             ##
 
             myres = self.instances[instance]['session'].request(self.apis[ep]['method'],api_url,json=post_data, verify=self.opts['urlscan_verify_ssl'][0])
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=myres.json()
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content
 
             ##
             # Begin processing the requests response from the webservice
