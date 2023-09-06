@@ -319,14 +319,19 @@ class Urlscan(Integration):
             str_err = "Success - No Results"
 
             if myres.status_code>=200 and myres.status_code<300:
-                if 'result' in myres.url:
+                if '/result/' in myres.url:
                     mydf = pd.DataFrame(self._apiResultParser(myres,self.apis[ep]['parsers']))
-                elif 'screenshot' in myres.url:
+                elif '/screenshot/' in myres.url:
                     mydf = pd.DataFrame()
                     self._apiDisplayScreenshot(myres)
-                elif 'dom' in myres.url:
+                elif '/dom/' in myres.url:
                     self._apiDOMDownload(myres, ep_data)
                     mydf = pd.DataFrame()
+                elif '/search/' in myres.url:
+                    mydf = pd.DataFrame(myres.json().get('results'))
+                    if myres.json().get('has_more'):
+                        print("This search has additional results...")
+                        print("Perhaps take your search to the web portal?")
                 else:
                     mydf = pd.DataFrame.from_records([(k,v) for k,v in myres.json().items()]).T
                 str_err = f"Success {str(myres.status_code)}"
