@@ -326,7 +326,7 @@ class Urlscan(Integration):
             if myres.status_code>=200 and myres.status_code<300:
                 if '/result/' in myres.url:
                     mydf = pd.DataFrame(self._apiResultParser(myres,self.apis[ep]['parsers']))
-                elif '/screenshot/' in myres.url:
+                elif '/screenshots/' in myres.url:
                     mydf = pd.DataFrame()
                     self._apiDisplayScreenshot(myres)
                 elif '/dom/' in myres.url:
