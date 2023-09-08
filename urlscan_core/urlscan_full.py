@@ -53,7 +53,7 @@ class Urlscan(Integration):
     myopts['urlscan_rate_limit'] = [True, "Limit rates based on URLScan user configuration"]
     myopts['urlscan_batchsubmit_wait_time'] = [2, "Seconds between batch HTTP requests"]
     myopts['urlscan_batchsubmit_max_file_load'] = [100, "The number of submissions"]
-    myopts['urlscan_resultready_wait_time']=[15, "Seconds between submission and result polling"]
+    myopts['urlscan_resultready_wait_time']=[12, "Seconds between submission and result polling"]
     myopts['urlscan_resultready_wait_attempts']=[3, "How many times to poll results before giving up."]
     myopts['urlscan_ssdisplay_height'] = [800, "how many pixels for screenshots"]
     myopts['urlscan_ssdisplay_width'] = [500, "how many pixels for screenshots"]
@@ -300,7 +300,7 @@ class Urlscan(Integration):
 
 
 
-    def execute_request(self, instance, ep, ep_data, download=False,polling=False):
+    def execute_request(self, instance, ep, ep_data, download=False,polling=False, batching=False):
         """
         Parameters
         ----------
@@ -355,7 +355,12 @@ class Urlscan(Integration):
                     break
 
             myres = polled_response
+        if not batching:
+            if ep!='dom' and ep!='screenshot':#would break responses jsonlib
+                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']={ep_data[0]:myres.json()}
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content
 
+        #Is there a redirect link to follow?
         if (ep=='screenshot' or ep=='dom' or ep=='result') and (myres.status_code==302 or myres.status_code==301):
             redirect_link = myres.headers.get('Location')
             result = re.search(r'\/[a-f0-9\-]{36}\/',redirect_link)
@@ -383,10 +388,13 @@ class Urlscan(Integration):
         for post_data in data:
             if self.debug:
                 print(f"Batch processing, running: {post_data}")
-            myres = self.execute_request(instance, ep,post_data)
+            myres = self.execute_request(instance, ep,post_data,batching=True)
             self.check_rate_limit(myres)
             try:
-                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.json()})
+                if ep=='dom' or ep=='screenshot':
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
+                else:
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.json()})
             except Exception as e:
                 print(f"Error occured while parsing Response to 'dict' {str(e)}")
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
@@ -449,7 +457,8 @@ class Urlscan(Integration):
             if batch:
                 myres = self.execute_batch_request(instance, ep, ep_data, download=download,polling=polling) #returns an array of response objects 
             else:
-                myres = self.execute_request(instance, ep, ep_data[0],download=download,polling=polling) #returns a response object
+                myres = self.execute_request(instance, ep,
+                ep_data[0],download=download,polling=polling) #returns a response object
             
             if ep=='dom':
                 mydf=None
@@ -481,12 +490,12 @@ class Urlscan(Integration):
                 if isinstance(myres,list):
                     mydf = pd.DataFrame(myres)
                 else:
-                    mydf = pd.DataFrame(myres.json())
+                    mydf = pd.DataFrame([myres.json()])
                 str_err = "Success"
                 if quiet:
-                    str_err + " - No Results"
+                    str_err = str_err + " - No Results"
                 else:
-                    str_err + " - Results"
+                    str_err = str_err + " - Results"
 
         except Exception as e:
             mydf = None
@@ -494,6 +503,7 @@ class Urlscan(Integration):
             print(str_err)
 
         if str_err.find("Success") >= 0:
+            status = status+str_err
             pass
         else:
             status = "Failure - query_error: " + str_err
