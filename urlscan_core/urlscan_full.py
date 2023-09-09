@@ -475,7 +475,8 @@ class Urlscan(Integration):
                 str_err = "Success - No Results"
             else: # ep was scan, result, search
                 if isinstance(myres,list):
-                    mydf = pd.DataFrame([self.parse_response(r) for r in myres])
+                    batch_results = [self.parse_response(r) for r in myres]
+                    mydf = pd.DataFrame(batch_results,index=list(range(0,len(batch_results))))
                 else:
                     if ep=='scan': index=[0]
                     else: index=None
