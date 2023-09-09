@@ -13,7 +13,7 @@ import datetime
 from IPython.core.magic import (Magics, magics_class, line_magic, cell_magic, line_cell_magic)
 from IPython.core.display import HTML
 from io import StringIO
-from requests import Request, Session
+from requests import Request, Session, Response
 
 from urlscan_core._version import __desc__
 from jupyter_integrations_utility.batchquery import df_expand_col
@@ -53,6 +53,7 @@ class Urlscan(Integration):
     myopts['urlscan_rate_limit'] = [True, "Limit rates based on URLScan user configuration"]
     myopts['urlscan_batchsubmit_wait_time'] = [2, "Seconds between batch HTTP requests"]
     myopts['urlscan_batchsubmit_max_file_load'] = [100, "The number of submissions"]
+    myopts['urlscan_redirect_wait'] = [5, "Seconds to wait on HTTP30X redirect"]
     myopts['urlscan_resultready_wait_time']=[12, "Seconds between submission and result polling"]
     myopts['urlscan_resultready_wait_attempts']=[3, "How many times to poll results before giving up."]
     myopts['urlscan_ssdisplay_height'] = [800, "how many pixels for screenshots"]
@@ -71,37 +72,51 @@ class Urlscan(Integration):
     base_url = "https://urlscan.io/api/v1"
     other_base_url = "https://urlscan.io"
 
-    apis = {
-            "scan": {'url':base_url,'path':"/scan/",'method':'POST','parsers':[],"switches":['-q','-b','-p']},
-            "result": {
-                'url':base_url,
-                'path':"/result/",
-                'method':'GET',
-                'switches':['-b','-q'],
-                ## column_name & column_value as jmespath valid string
-                'parsers':[
-                    ("page","page"),
-                    ("uuid","task.uuid"),
-                    ("report_url","task.reportURL"),
-                    ("verdicts","verdicts.overall"),
-                    ("cookies","data.cookies[*].[domain,name,value]"),
-                    ("embedded_links","data.links"),
-                    ("rdns","meta.processors.rdns.data[]"),
-                    ("certificates","lists.certificates[].[subjectName,issuer,validTo]"),
-                    ("tls_stats","stats.tlsStats"),
-                    ("protocol_stats","stats.protocolStats"),
-                    ("global_strings","data.globals[?type=='string'].[prop]"),
-                    ("global_functions","data.globals[?type=='function'].[prop]"),
-                    ("global_objects","data.globals[?type=='object'].[prop]"),
-                    ("global_booleans","data.globals[?type=='boolean'].[prop]"),
-                    ("domain_stats","stats.domainStats"),
-                    ("submitter","submitter")
-                ]
-            },
-            "screenshot":{'url':other_base_url,'path':'/screenshots/','method':'GET','switches':['-b','-d']},
-            "dom":{'url':other_base_url,'path':"/dom/",'method':'GET','switches':['-b','-d']},
-            "search": {'url':base_url,'path':"/search/?q=",'method':'GET','switches':['-q']}
-            }
+    apis={
+        "scan": {
+            'url':base_url,
+            'path':"/scan/",
+            'method':'POST',
+            "switches":['-q','-b','-p']
+        },
+        "result":{
+            'url':base_url,
+            'path':"/result/<~~uuid~~>/",
+            'method':'GET',
+            'switches':['-b','-q'],
+        },
+        "screenshot":{
+            'url':other_base_url,
+            'path':'/screenshots/<~~uuid~~>.png',
+            'method':'GET',
+            'switches':['-b'],
+        },
+        "dom":{
+            'url':other_base_url,
+            'path':"/dom/<~~uuid~~>/",
+            'method':'GET',
+            'switches':['-b'],
+        },
+        "search":{
+            'url':base_url,
+            'path':"/search/?q=",
+            'method':'GET',
+            'switches':['-q'],
+        },
+        "dom_similar":{
+            'url':base_url,
+            'path':'/pro/result/<~~uuid~~>/similar/',
+            'method':'GET',
+            'switches':['-b','-q'],
+        },
+        "redirect_use_only":{
+            'url':'',
+            'path':'',
+            'method':'GET',
+            'switches':[],
+            'parsers':[]
+        },
+    }
 
 
 
@@ -188,10 +203,8 @@ class Urlscan(Integration):
         command = list(filter(None,command))
         end_point_switches = []
         end_point = command[0].lower()
-
         if len(command) > 1:
             end_point_switches = command[1:] 
-
         if len(q_items[1:]) >= 1:
             end_point_vars = list(set(list(filter(None,list(map(lambda variable : variable.strip(),q_items[1:]))))))
         else:
@@ -227,27 +240,6 @@ class Urlscan(Integration):
         return bRun
 
 
-    def fileDownload(self, response, uuid):
-        if self.debug:
-            print('fileDownload')
-            print(response)
-            print(uuid)
-        status = -1
-        if os.access('.', os.W_OK):
-            f = open(f"dom_{uuid}.txt","wb")
-            try:
-                f.write(response.content)
-            except Exception as e:
-                print(f"An error has occured:\n{str(e)}")
-                print(status=-2)
-            finally:
-                f.flush()
-                f.close()
-                status = 0
-        else:
-            print("Please check that you are in a writeable directory before making this request.") 
-        return status 
-
     def display_screenshot(self, response, width, height):
         b64_img_data = base64.b64encode(response.content).decode()
         try:
@@ -263,15 +255,6 @@ class Urlscan(Integration):
             print(f"An error with IPython.display occured: {str(e)}")
         return 
 
-    def _apiResultParser(self, scan_result, parsers):
-        if self.debug:
-            print('_apiResultParser')
-            print(type(scan_result))
-            print(parsers)
-        parsed = {}
-        for expression in parsers:
-            parsed.update({expression[0]:[jmespath.search(expression[1],scan_result.json())]})
-        return parsed
 
     def buildRequest(self,ep,ep_data):
         post_data = None
@@ -290,17 +273,14 @@ class Urlscan(Integration):
                 post_data.update({"referer":self.opts['urlscan_submission_referer'][0]})
 
         elif method=='GET':
-            api_url=f"{self.apis[ep.lower()]['url']}{self.apis[ep.lower()]['path']}{ep_data.strip()}"
-            if ep.lower()=='screenshot':
-                api_url=api_url+'.png'
-            if ep.lower()=='result':
-                api_url=api_url+'/'
+            api_url=f"{self.apis[ep.lower()]['url']}{self.apis[ep.lower()]['path']}"
+            api_url=api_url.replace('<~~uuid~~>', ep_data.strip())
 
         return method,api_url,post_data
 
 
 
-    def execute_request(self, instance, ep, ep_data, download=False,polling=False, batching=False):
+    def execute_request(self, instance, ep, ep_data, polling=False, batching=False):
         """
         Parameters
         ----------
@@ -308,13 +288,14 @@ class Urlscan(Integration):
             represents a user given command, maps to an endpoint
         ep_data : str|list
             data passed to 'cell' after line, ep
-        download : bool, optional
-            If True, for some endpoints, will download the target sample ot
-            local directory
         polling : bool, optional
             If True, polls URLScan results after submission for X attempts by Y
             interval, as defined by myopts['urlscan_resultready_wait_attempts']
             and myopts['urlscan_resultready_wait_time'] respectively
+        batching : bool, optional
+            If True, tells execute_request NOT to instantiate instance globals
+            _dict and _raw for prev_%yourmagic%_%yourinstance%_, presumes you
+            will handle the variables downstream as an aggregate
 
         Output
         ------
@@ -331,8 +312,15 @@ class Urlscan(Integration):
             print(post_data)
             print('!'*20)
 
-        myres = self.instances[instance]['session'].request(method,api_url,json=post_data,verify=self.opts['urlscan_verify_ssl'][0])
-        self.check_rate_limit(myres)
+        while True:
+            myres = self.instances[instance]['session'].request(method,api_url,json=post_data,verify=self.opts['urlscan_verify_ssl'][0])
+            if myres.status_code==301 or myres.status_code==302 or myres.status_code==308:
+                api_url=myres.headers.get('Location')
+                method='GET'
+                post_data=None
+                sleep(self.opts['urlscan_redirect_wait'][0])
+            else:
+                break
 
         if polling:
             endpoint = ""
@@ -342,45 +330,35 @@ class Urlscan(Integration):
             else:
                 endpoint = ep
                 input_data = ep_data
-
-            if self.debug:
-                print(f"Polling")
-                print(f"Polling endpoint {ep}")
-                print(f"Polling input data {input_data}")
-
             for i in range(0,self.opts['urlscan_resultready_wait_attempts'][0]):
                 sleep(self.opts['urlscan_resultready_wait_time'][0])
                 polled_response = self.execute_request(instance, endpoint,input_data) 
                 if polled_response.ok:
                     break
-
             myres = polled_response
+
         if not batching:
             if ep!='dom' and ep!='screenshot':#would break responses jsonlib
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']={ep_data[0]:myres.json()}
             self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content
 
-        #Is there a redirect link to follow?
-        if (ep=='screenshot' or ep=='dom' or ep=='result') and (myres.status_code==302 or myres.status_code==301):
-            redirect_link = myres.headers.get('Location')
-            result = re.search(r'\/[a-f0-9\-]{36}\/',redirect_link)
-            if result:
-                myres = self.execute_request(instance, ep, result.group(0))
-            else:
-                print("The resource has moved")
-                print(redirect_link)
-                
-        if self.debug:
-            print("Execution result")
-            print(f"HTTP {str(myres.status_code)}\n{myres.content[0:100]}")
-
-        return myres
+        return myres 
 
 
-    def execute_batch_request(self, instance, ep, data, download=False, polling=False):
+    def execute_batch_request(self, instance, ep, data, polling=False):
+        """
+        Params
+        ------
+        instance - str - represents the instance in self.instances[{instance}]
+        ep - str - represents the endpoint/command passed by the user
+        data - list - a list of data provided in the %magics cell by the user
+        polling - bool - (default False) if True, tells execute_request to poll
+        the API for results after submissions
+        Returns
+        -------
+        """
+
         results = []
-        raw_content = []
-        dicts = [] 
 
         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']={}
         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']={}
@@ -388,8 +366,9 @@ class Urlscan(Integration):
         for post_data in data:
             if self.debug:
                 print(f"Batch processing, running: {post_data}")
+
             myres = self.execute_request(instance, ep,post_data,batching=True)
-            self.check_rate_limit(myres)
+
             try:
                 if ep=='dom' or ep=='screenshot':
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
@@ -402,25 +381,41 @@ class Urlscan(Integration):
             self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({post_data:myres.content})
             results.append(myres)
             sleep(self.opts['urlscan_batchsubmit_wait_time'][0])
-
         return results
 
+    def parse_response(self, response):
+        """
+        Description
+        -----------
+        This is a place holder function for future parsing use cases
 
-    def check_rate_limit(self,myres):
-        # Rate limit parsing (specific to URLScan)
-        if 'X-Rate-Limit-Limit' in myres.headers.keys() and float(int(myres.headers.get('X-Rate-Limit-Remaining'))/int(myres.headers.get('X-Rate-Limit-Limit')))<0.11:
+        Parameters
+        ----------
+        response - type requests.model.Response - A response object
+
+        Output
+        ------
+        filtered_dict - type dictionary - A dictionary representing a filtered
+        json string interpreted from the response object provided
+        """
+
+        if 'X-Rate-Limit-Limit' in response.headers.keys() and float(int(response.headers.get('X-Rate-Limit-Remaining'))/int(response.headers.get('X-Rate-Limit-Limit')))<0.11:
             print("!"*22) 
             print("! RATE LIMIT WARNING !")
             print("!"*22) 
-            print(f"Rate Limiting:{myres.headers.get('X-Rate-Limit-Remaining')}")
-            print(f"You have {myres.headers.get('X-Rate-Limit-Limit')} requests to your limit.")
-            print(f"Rate Limit resets on {str(myres.headers.get('X-Rate-Limit-Reset'))}")
-            print(f"Rate Limit resets in {str(myres.headers.get('X-Rate-Limit-Reset-After'))} seconds")
+            print(f"Rate Limiting:{response.headers.get('X-Rate-Limit-Remaining')}")
+            print(f"You have {response.headers.get('X-Rate-Limit-Limit')} requests to your limit.")
+            print(f"Rate Limit resets on {str(response.headers.get('X-Rate-Limit-Reset'))}")
+            print(f"Rate Limit resets in {str(response.headers.get('X-Rate-Limit-Reset-After'))} seconds")
             print("If this request was a 'private' submission, you can switch to use 'unlisted' to work around this quota.")
+        try:
+            if isinstance(response, Response):
+                return response.json()
+        except Exception as e:
+            print(f"Error while parsing JSON from request: {str(e)}")
         return
 
     def customQuery(self, query, instance, reconnect=True):
-
         ep, ep_data, eps = self.parse_query(query)
         ep_api = self.apis.get(ep, None)
 
@@ -432,7 +427,6 @@ class Urlscan(Integration):
         mydf = None
         status = ""
         str_err = ""
-        download=False
         quiet=False
         batch=False
         polling=False
@@ -444,9 +438,6 @@ class Urlscan(Integration):
         if "-q" in eps:
             quiet=True
 
-        if "-d" in eps:
-            download=True
-
         if "-b" in eps or len(ep_data)>1:
             batch=True
 
@@ -455,26 +446,23 @@ class Urlscan(Integration):
 
         try:
             if batch:
-                myres = self.execute_batch_request(instance, ep, ep_data, download=download,polling=polling) #returns an array of response objects 
+                myres = self.execute_batch_request(instance, ep, ep_data, polling=polling)
             else:
-                myres = self.execute_request(instance, ep,
-                ep_data[0],download=download,polling=polling) #returns a response object
-            
+                set_trace()
+                myres = self.execute_request(instance, ep, ep_data[0],polling=polling)
             if ep=='dom':
-                mydf=None
                 quiet = True
                 print(f"""
-                    DOM content put into variables: 
-                    prev_{self.name_str}_{instance}_raw
-                    prev_{self.name_str}_{instance}_dict
+                DOM content put into variables: 
+                prev_{self.name_str}_{instance}_raw
+                prev_{self.name_str}_{instance}_dict
                 """)
                 str_err = "Success - No Results"
             elif ep=='screenshot':
-                mydf=None
                 print(f"""
-                    Screenshot content put into variables: 
-                    prev_{self.name_str}_{instance}_raw
-                    prev_{self.name_str}_{instance}_dict
+                Screenshot content put into variables: 
+                prev_{self.name_str}_{instance}_raw
+                prev_{self.name_str}_{instance}_dict
                 """)
                 if not quiet: #display
                     width=self.opts['urlscan_ssdisplay_width'][0]
@@ -485,12 +473,13 @@ class Urlscan(Integration):
                     else:
                         self.display_screenshot(myres,width, height)
                 str_err = "Success - No Results"
-                        
             else: # ep was scan, result, search
                 if isinstance(myres,list):
-                    mydf = pd.DataFrame(myres)
+                    mydf = pd.DataFrame([self.parse_response(r) for r in myres])
                 else:
-                    mydf = pd.DataFrame([myres.json()])
+                    if ep=='scan': index=[0]
+                    else: index=None
+                    mydf = pd.DataFrame(self.parse_response(myres),index=index)
                 str_err = "Success"
                 if quiet:
                     str_err = str_err + " - No Results"
