@@ -84,6 +84,24 @@ class Urlscan(Integration):
             'path':"/result/<~~uuid~~>/",
             'method':'GET',
             'switches':['-b','-q'],
+            'parsers':[
+                ("page","page"),
+                ("uuid","task.uuid"),
+                ("report_url","task.reportURL"),
+                ("verdicts","verdicts.overall"),
+                ("cookies","data.cookies[*].[domain,name,value]"),
+                ("embedded_links","data.links"),
+                ("rdns","meta.processors.rdns.data[]"),
+                ("certificates","lists.certificates[].[subjectName,issuer,validTo]"),
+                ("tls_stats","stats.tlsStats"),
+                ("protocol_stats","stats.protocolStats"),
+                ("global_strings","data.globals[?type=='string'].[prop]"),
+                ("global_functions","data.globals[?type=='function'].[prop]"),
+                ("global_objects","data.globals[?type=='object'].[prop]"),
+                ("global_booleans","data.globals[?type=='boolean'].[prop]"),
+                ("domain_stats","stats.domainStats"),
+                ("submitter","submitter")
+            ]
         },
         "screenshot":{
             'url':other_base_url,
@@ -108,6 +126,17 @@ class Urlscan(Integration):
             'path':'/pro/result/<~~uuid~~>/similar/',
             'method':'GET',
             'switches':['-b','-q'],
+            'parsers':[
+                ('page','results[].page'),
+                ('brand','results[].brand'),
+                ('verdicts','results[].verdicts'),
+                ('verdicts','results[].dom'),
+                ('score','results[]._score'),
+                ('text','results[].text'),
+                ('result','results[].result'),
+                ('result','results[].screenshot'),
+                ('id','results[]._id')
+            ]
         },
         "redirect_use_only":{
             'url':'',
@@ -383,7 +412,7 @@ class Urlscan(Integration):
             sleep(self.opts['urlscan_batchsubmit_wait_time'][0])
         return results
 
-    def parse_response(self, response):
+    def parse_response(self, response,ep):
         """
         Description
         -----------
@@ -392,6 +421,7 @@ class Urlscan(Integration):
         Parameters
         ----------
         response - type requests.model.Response - A response object
+        ep - type string - Represents the endpoint passed to parse
 
         Output
         ------
@@ -409,8 +439,19 @@ class Urlscan(Integration):
             print(f"Rate Limit resets in {str(response.headers.get('X-Rate-Limit-Reset-After'))} seconds")
             print("If this request was a 'private' submission, you can switch to use 'unlisted' to work around this quota.")
         try:
+            parsed = {}
             if isinstance(response, Response):
-                return response.json()
+                if response.status_code==200:
+                    if self.apis[ep].get('parsers'):
+                        for parser in self.apis[ep].get('parsers'):
+                            if ep=='result':
+                                parsed.update({parser[0]:[jmespath.search(parser[1],response.json())]})
+                            elif ep=='dom_similar':
+                                parsed.update({parser[0]:jmespath.search(parser[1],response.json())})
+                    else:
+                        parsed = response.json()
+
+                return parsed 
         except Exception as e:
             print(f"Error while parsing JSON from request: {str(e)}")
         return
@@ -475,12 +516,12 @@ class Urlscan(Integration):
                 str_err = "Success - No Results"
             else: # ep was scan, result, search
                 if isinstance(myres,list):
-                    batch_results = [self.parse_response(r) for r in myres]
+                    batch_results = [self.parse_response(r,ep) for r in myres]
                     mydf = pd.DataFrame(batch_results,index=list(range(0,len(batch_results))))
                 else:
                     if ep=='scan': index=[0]
                     else: index=None
-                    mydf = pd.DataFrame(self.parse_response(myres),index=index)
+                    mydf = pd.DataFrame(self.parse_response(myres,ep),index=index)
                 str_err = "Success"
                 if quiet:
                     str_err = str_err + " - No Results"
