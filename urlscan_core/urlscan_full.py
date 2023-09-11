@@ -177,9 +177,9 @@ class Urlscan(Integration):
         out = curout
 
         qexamples = []
-        qexamples.append(["myinstance", "scan\nhttps://this.supershady.url/", "Run a urlscan query for iris-enrich"])
-        qexamples.append(["","result\na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it."])
-        qexamples.append(["","dom\na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it."])
+        qexamples.append(["myinstance", "scan -p\nhttps://this.supershady.url/", "Run a urlscan query for iris-enrich, optional -p flag enables POLLING, or waiting, for the results are ready, or a wait limit is reached, whichever occurs first."])
+        qexamples.append(["","result -q\na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it. -q indicates the 'quiet' option, returning results to a dataframe without rendering that dataframe to the invoking user."])
+        qexamples.append(["","dom -b\na353d4c9-2fa1-4b9b-8919-08ac1db9772a\na421e9d8-3eb2-4b9b-8919-18ad1dc9722b","Provide a UUID to retrieve results from URLScan for the submission associated to it. -b enables 'batching', sending more than a single submission in a query."])        
         out += self.retQueryHelp(qexamples)
 
         return out
