@@ -29,7 +29,7 @@ from time import strftime, localtime, sleep
 import jmespath
 from io import BytesIO
 import base64
-from IPython.core.debugger import set_trace
+#from IPython.core.debugger import set_trace
 
 @magics_class
 class Urlscan(Integration):
@@ -489,7 +489,6 @@ class Urlscan(Integration):
             if batch:
                 myres = self.execute_batch_request(instance, ep, ep_data, polling=polling)
             else:
-                set_trace()
                 myres = self.execute_request(instance, ep, ep_data[0],polling=polling)
             if ep=='dom':
                 quiet = True
