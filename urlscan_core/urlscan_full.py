@@ -384,7 +384,7 @@ class Urlscan(Integration):
         if not batching:
             if ep!='dom' and ep!='screenshot':#would break responses jsonlib
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']={ep_data[0]:myres.json()}
-            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content.decode()
         return myres 
 
 
@@ -415,14 +415,14 @@ class Urlscan(Integration):
 
             try:
                 if ep=='dom' or ep=='screenshot':
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.content})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.content.decode()})
                 else:
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.json()})
             except Exception as e:
                 print(f"Error occured while parsing Response to 'dict' {str(e)}")
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
                 pass
-            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({post_data:myres.content})
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({post_data:myres.content.decode()})
             results.append(myres)
         return results
 
