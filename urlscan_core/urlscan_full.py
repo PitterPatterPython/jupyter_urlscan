@@ -29,7 +29,7 @@ from time import strftime, localtime, sleep
 import jmespath
 from io import BytesIO
 import base64
-#from IPython.core.debugger import set_trace
+from IPython.core.debugger import set_trace
 
 @magics_class
 class Urlscan(Integration):
@@ -117,7 +117,7 @@ class Urlscan(Integration):
         },
         "search":{
             'url':base_url,
-            'path':"/search/?q=",
+            'path':"/search/?q=<~~uuid~~>",
             'method':'GET',
             'switches':['-q'],
         },
@@ -350,7 +350,7 @@ class Urlscan(Integration):
                 sleep(self.opts['urlscan_redirect_wait'][0])
             else:
                 break
-
+        set_trace()
         if polling:
             endpoint = ""
             if ep == 'scan': #we are polling for a different endpoint 
