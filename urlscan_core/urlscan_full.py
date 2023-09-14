@@ -350,7 +350,6 @@ class Urlscan(Integration):
                 sleep(self.opts['urlscan_redirect_wait'][0])
             else:
                 break
-        set_trace()
         if polling:
             endpoint = ""
             if ep == 'scan': #we are polling for a different endpoint 
