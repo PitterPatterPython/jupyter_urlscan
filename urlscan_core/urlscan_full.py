@@ -246,10 +246,10 @@ class Urlscan(Integration):
         if len(command) > 1:
             end_point_switches = command[1:] 
         if len(q_items[1:]) >= 1:
-            end_point_vars = list(set(list(filter(None,list(map(lambda variable : variable.strip(),q_items[1:]))))))
+            end_point_data = list(set(list(filter(None,list(map(lambda variable : variable.strip(),q_items[1:]))))))
         else:
-            end_point_vars = None
-        return end_point, end_point_vars, end_point_switches
+            end_point_data = None
+        return end_point, end_point_data, end_point_switches
 
     def validateQuery(self, query, instance):
         bRun = True
@@ -525,10 +525,15 @@ class Urlscan(Integration):
                     width=self.opts['urlscan_ssdisplay_width'][0]
                     height=self.opts['urlscan_ssdisplay_height'][0]
                     if isinstance(myres, list):
+                        self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=[]
                         for resp in myres:
-                            self.display_screenshot(resp,width, height)
+                            b64_img_data = base64.b64encode(resp.content).decode()
+                            self.display_screenshot(resp,width,height)
+                            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img'].append(b64_img_data)
                     else:
                         self.display_screenshot(myres,width, height)
+                        b64_img_data = base64.b64encode(myres.content).decode()
+                        self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=b64_img_data
                 str_err = "Success - No Results"
             else: # ep was scan, result, search & visual_search
                 if isinstance(myres,list):
