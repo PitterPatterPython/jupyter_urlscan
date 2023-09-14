@@ -407,6 +407,7 @@ class Urlscan(Integration):
         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']={}
         
         for post_data in data:
+            sleep(self.opts['urlscan_batchsubmit_wait_time'][0])
             if self.debug:
                 print(f"Batch processing, running: {post_data}")
 
@@ -414,7 +415,7 @@ class Urlscan(Integration):
 
             try:
                 if ep=='dom' or ep=='screenshot':
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.content})
                 else:
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.json()})
             except Exception as e:
@@ -423,7 +424,6 @@ class Urlscan(Integration):
                 pass
             self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({post_data:myres.content})
             results.append(myres)
-            sleep(self.opts['urlscan_batchsubmit_wait_time'][0])
         return results
 
     def parse_response(self, response,ep):
@@ -540,7 +540,9 @@ class Urlscan(Integration):
                     batch_results = [self.parse_response(r,ep) for r in myres]
                     mydf = pd.DataFrame(batch_results,index=list(range(0,len(batch_results))))
                 else:
-                    if ep=='scan' and polling: ep='result' 
+                    if ep=='scan' and polling: 
+                        ep='result' 
+                        index=None
                     elif ep=='scan': index=[0]
                     else: index=None
                     mydf = pd.DataFrame(self.parse_response(myres,ep),index=index)
