@@ -55,10 +55,10 @@ class Urlscan(Integration):
     myopts['urlscan_batchsubmit_max_file_load'] = [100, "The number of submissions"]
     myopts['urlscan_redirect_wait'] = [5, "Seconds to wait on HTTP30X redirect"]
     myopts['urlscan_resultready_wait_time']=[12, "Seconds between submission and result polling"]
-    myopts['urlscan_resultready_wait_attempts']=[3, "How many times to poll results before giving up."]
+    myopts['urlscan_resultready_wait_attempts']=[6, "How many times to poll results before giving up."]
     myopts['urlscan_ssdisplay_height'] = [1200, "how many pixels wide for displaying an image"]
     myopts['urlscan_ssdisplay_width'] = [850, "how many pixels wide for screenshots for displaying an image"]
-    myopts['urlscan_submission_visiblity'] = ["public", "Default visiblity for submissions to URLScan."]
+    myopts['urlscan_submission_visiblity'] = ["private", "Default visiblity for submissions to URLScan."]
     myopts['urlscan_submission_country'] = ["US","The country from which the scan should be performed"]
     myopts['urlscan_submission_referer'] = [None, "Override the HTTP referer for this scan"]
     myopts['urlscan_submission_useragent'] = [None, "Override useragent for this scan"]
@@ -77,13 +77,13 @@ class Urlscan(Integration):
             'url':base_url,
             'path':"/scan/",
             'method':'POST',
-            "switches":['-q','-b','-p']
+            "switches":['-b','-p']
         },
         "result":{
             'url':base_url,
             'path':"/result/<~~uuid~~>/",
             'method':'GET',
-            'switches':['-b','-q'],
+            'switches':['-b'],
             'parsers':[
                 ("page","page"),
                 ("uuid","task.uuid"),
@@ -119,13 +119,13 @@ class Urlscan(Integration):
             'url':base_url,
             'path':"/search/?q=<~~uuid~~>",
             'method':'GET',
-            'switches':['-q'],
+            'switches':[''],
         },
         "dom_similar":{
             'url':base_url,
             'path':'/pro/result/<~~uuid~~>/similar/',
             'method':'GET',
-            'switches':['-b','-q'],
+            'switches':['-b'],
             'parsers':[
                 ('page','results[].page'),
                 ('brand','results[].brand'),
@@ -142,7 +142,12 @@ class Urlscan(Integration):
             'url':base_url,
             'path':'/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
             'method':'GET',
-            'switches':['-q'],
+            'switches':[],
+            'parsers':[
+                ('uuid','results[].task.uuid'),
+                ('domain','results[].task.domain'),
+                ('url','results[].task.url'),
+            ],
         },
         "redirect_use_only":{
             'url':'',
@@ -184,7 +189,7 @@ class Urlscan(Integration):
 
         qexamples = []
         qexamples.append(["myinstance", "scan -p\nhttps://this.supershady.url/", "Run a urlscan query for iris-enrich, optional -p flag enables POLLING, or waiting, for the results are ready, or a wait limit is reached, whichever occurs first."])
-        qexamples.append(["","result -q\na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it. -q indicates the 'quiet' option, returning results to a dataframe without rendering that dataframe to the invoking user."])
+        qexamples.append(["","result \na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it."])
         qexamples.append(["","dom -b\na353d4c9-2fa1-4b9b-8919-08ac1db9772a\na421e9d8-3eb2-4b9b-8919-18ad1dc9722b","Provide a UUID to retrieve results from URLScan for the submission associated to it. -b enables 'batching', sending more than a single submission in a query."])        
         out += self.retQueryHelp(qexamples)
 
@@ -356,9 +361,11 @@ class Urlscan(Integration):
                 sleep(self.opts['urlscan_redirect_wait'][0])
             else:
                 break
-        set_trace()
-
         if polling:
+            print(f"""
+                Waiting {str(self.opts['urlscan_resultready_wait_time'][0])} seconds 
+                after submission to ask {str(self.name_str)} if the results are ready for a 
+                maximum of {str(self.opts['urlscan_resultready_wait_attempts'][0])} attempts...""") 
             endpoint = ""
             if ep == 'scan': #we are polling for a different endpoint 
                 endpoint = 'result'
@@ -366,9 +373,10 @@ class Urlscan(Integration):
             else:
                 endpoint = ep
                 input_data = ep_data
+            print(f"Polling for results for {input_data}...")
             for i in range(0,self.opts['urlscan_resultready_wait_attempts'][0]):
                 sleep(self.opts['urlscan_resultready_wait_time'][0])
-                polled_response = self.execute_request(instance, endpoint,input_data) 
+                polled_response = self.execute_request(instance, endpoint,input_data,batching=batching) 
                 if polled_response.ok:
                     break
             myres = polled_response
@@ -377,7 +385,6 @@ class Urlscan(Integration):
             if ep!='dom' and ep!='screenshot':#would break responses jsonlib
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']={ep_data[0]:myres.json()}
             self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=myres.content
-
         return myres 
 
 
@@ -403,7 +410,7 @@ class Urlscan(Integration):
             if self.debug:
                 print(f"Batch processing, running: {post_data}")
 
-            myres = self.execute_request(instance, ep,post_data,batching=True)
+            myres = self.execute_request(instance,ep,post_data,batching=True,polling=polling)
 
             try:
                 if ep=='dom' or ep=='screenshot':
@@ -453,7 +460,7 @@ class Urlscan(Integration):
                         for parser in self.apis[ep].get('parsers'):
                             if ep=='result':
                                 parsed.update({parser[0]:[jmespath.search(parser[1],response.json())]})
-                            elif ep=='dom_similar':
+                            elif ep in ['dom_similar','visual_similar']:
                                 parsed.update({parser[0]:jmespath.search(parser[1],response.json())})
                     else:
                         parsed = response.json()
@@ -484,12 +491,15 @@ class Urlscan(Integration):
             return mydf, "Success - No Results"
 
         if "-q" in eps:
+            print("Quiet mode enabled")
             quiet=True
 
         if "-b" in eps or len(ep_data)>1:
+            print("Batch processing enabled")
             batch=True
 
         if "-p" in eps:
+            print("Polling enabled")
             polling=True
 
         try:
@@ -525,7 +535,8 @@ class Urlscan(Integration):
                     batch_results = [self.parse_response(r,ep) for r in myres]
                     mydf = pd.DataFrame(batch_results,index=list(range(0,len(batch_results))))
                 else:
-                    if ep=='scan': index=[0]
+                    if ep=='scan' and polling: ep='result' 
+                    elif ep=='scan': index=[0]
                     else: index=None
                     mydf = pd.DataFrame(self.parse_response(myres,ep),index=index)
                 str_err = "Success"
