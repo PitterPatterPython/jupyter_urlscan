@@ -138,6 +138,12 @@ class Urlscan(Integration):
                 ('id','results[]._id')
             ]
         },
+        "visual_similar":{
+            'url':base_url,
+            'path':'/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
+            'method':'GET',
+            'switches':['-q'],
+        },
         "redirect_use_only":{
             'url':'',
             'path':'',
@@ -350,6 +356,8 @@ class Urlscan(Integration):
                 sleep(self.opts['urlscan_redirect_wait'][0])
             else:
                 break
+        set_trace()
+
         if polling:
             endpoint = ""
             if ep == 'scan': #we are polling for a different endpoint 
@@ -512,7 +520,7 @@ class Urlscan(Integration):
                     else:
                         self.display_screenshot(myres,width, height)
                 str_err = "Success - No Results"
-            else: # ep was scan, result, search
+            else: # ep was scan, result, search & visual_search
                 if isinstance(myres,list):
                     batch_results = [self.parse_response(r,ep) for r in myres]
                     mydf = pd.DataFrame(batch_results,index=list(range(0,len(batch_results))))
