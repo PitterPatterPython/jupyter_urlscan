@@ -417,7 +417,7 @@ class Urlscan(Integration):
                 if ep=='dom' or ep=='screenshot':
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):myres.content})
                 else:
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):self.defang_dict(myres.json())})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):myres.json()})
             except Exception as e:
                 print(f"Error occured while parsing Response to 'dict' {str(e)}")
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):None})
@@ -459,9 +459,9 @@ class Urlscan(Integration):
                     if self.apis[ep].get('parsers'):
                         for parser in self.apis[ep].get('parsers'):
                             if ep=='result':
-                                parsed.update({parser[0]:[jmespath.search(parser[1],self.defang_dict(response.json()))]})
-                            elif ep in ['dom_similar','visual_similar']:
-                                parsed.update({parser[0]:jmespath.search(parser[1],self.defang_dict(response.json()))})
+                                parsed.update({parser[0]:[jmespath.search(parser[1],response.json())]})
+                            elif ep in ['dom_similar','visual_similar','search']:
+                                parsed.update({parser[0]:jmespath.search(parser[1],(response.json()))})
                     else:
                         parsed = response.json()
 
@@ -472,11 +472,6 @@ class Urlscan(Integration):
 
     def defang_url(self,input):
         return re.sub(r'((?:^|[\'\"])(?:s(?=f))?)[fh](t?tp)',r'\1x\2',input) 
-
-    def defang_dict(self,input_dict):
-        for k,v in input_dict:
-            input_dict[k].update(self.defang_url(v))
-        return input_dict
 
     def customQuery(self, query, instance, reconnect=True):
         ep, ep_data, eps = self.parse_query(query)
