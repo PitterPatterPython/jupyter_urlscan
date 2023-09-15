@@ -107,7 +107,7 @@ class Urlscan(Integration):
             'url':other_base_url,
             'path':'/screenshots/<~~uuid~~>.png',
             'method':'GET',
-            'switches':['-b'],
+            'switches':['-b','-q'],
         },
         "dom":{
             'url':other_base_url,
@@ -415,14 +415,14 @@ class Urlscan(Integration):
 
             try:
                 if ep=='dom' or ep=='screenshot':
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.content.decode()})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):myres.content})
                 else:
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:myres.json()})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):self.defang_dict(myres.json())})
             except Exception as e:
                 print(f"Error occured while parsing Response to 'dict' {str(e)}")
-                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({post_data:None})
+                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):None})
                 pass
-            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({post_data:myres.content.decode()})
+            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].update({self.defang_url(post_data):myres.content})
             results.append(myres)
         return results
 
@@ -459,9 +459,9 @@ class Urlscan(Integration):
                     if self.apis[ep].get('parsers'):
                         for parser in self.apis[ep].get('parsers'):
                             if ep=='result':
-                                parsed.update({parser[0]:[jmespath.search(parser[1],response.json())]})
+                                parsed.update({parser[0]:[jmespath.search(parser[1],self.defang_dict(response.json()))]})
                             elif ep in ['dom_similar','visual_similar']:
-                                parsed.update({parser[0]:jmespath.search(parser[1],response.json())})
+                                parsed.update({parser[0]:jmespath.search(parser[1],self.defang_dict(response.json()))})
                     else:
                         parsed = response.json()
 
@@ -469,6 +469,14 @@ class Urlscan(Integration):
         except Exception as e:
             print(f"Error while parsing JSON from request: {str(e)}")
         return
+
+    def defang_url(self,input):
+        return re.sub(r'((?:^|[\'\"])(?:s(?=f))?)[fh](t?tp)',r'\1x\2',input) 
+
+    def defang_dict(self,input_dict):
+        for k,v in input_dict:
+            input_dict[k].update(self.defang_url(v))
+        return input_dict
 
     def customQuery(self, query, instance, reconnect=True):
         ep, ep_data, eps = self.parse_query(query)
@@ -525,15 +533,20 @@ class Urlscan(Integration):
                     width=self.opts['urlscan_ssdisplay_width'][0]
                     height=self.opts['urlscan_ssdisplay_height'][0]
                     if isinstance(myres, list):
-                        self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=[]
                         for resp in myres:
-                            b64_img_data = base64.b64encode(resp.content).decode()
                             self.display_screenshot(resp,width,height)
-                            self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img'].append(b64_img_data)
                     else:
                         self.display_screenshot(myres,width, height)
                         b64_img_data = base64.b64encode(myres.content).decode()
-                        self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=b64_img_data
+
+                if isinstance(myres,list):
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=[]
+                    for resp in myres: 
+                        b64_img_data = base64.b64encode(resp.content).decode()
+                        self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img'].append(b64_img_data)
+                else:
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=b64_img_data
+
                 str_err = "Success - No Results"
             else: # ep was scan, result, search & visual_search
                 if isinstance(myres,list):
