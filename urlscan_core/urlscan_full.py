@@ -49,7 +49,7 @@ class Urlscan(Integration):
     help_dict = {}
     myopts = {}
     myopts['urlscan_conn_default'] = ["default", "Default instance to connect with"]
-    myopts['urlscan_verify_ssl'] = [True, "Verify integrity of SSL"]
+    myopts['urlscan_verify_ssl'] = [False, "Verify integrity of SSL"]
     myopts['urlscan_rate_limit'] = [True, "Limit rates based on URLScan user configuration"]
     myopts['urlscan_batchsubmit_wait_time'] = [2, "Seconds between batch HTTP requests"]
     myopts['urlscan_batchsubmit_max_file_load'] = [100, "The number of submissions"]
@@ -223,7 +223,7 @@ class Urlscan(Integration):
                 else:
                     ssl_verify = False
 
-            inst['session'].verify=ssl_verify
+            inst['session'].verify=self.opts['urlscan_verify_ssl'][0]
             result = 0
         return result
 
@@ -343,7 +343,7 @@ class Urlscan(Integration):
             print('!'*20)
 
         while True:
-            myres = self.instances[instance]['session'].request(method,api_url,json=post_data,verify=self.opts['urlscan_verify_ssl'][0])
+            myres = self.instances[instance]['session'].request(method,api_url,json=post_data)
             if myres.status_code==301 or myres.status_code==302 or myres.status_code==308:
                 api_url=myres.headers.get('Location')
                 method='GET'
