@@ -69,19 +69,14 @@ class Urlscan(Integration):
     Key:Value pairs here for APIs represent the type? 
     """
 
-    base_url = "https://urlscan.io/api/v1"
-    other_base_url = "https://urlscan.io"
-
     apis={
         "scan": {
-            'url':base_url,
-            'path':"/scan/",
+            'path':"/api/v1/scan/",
             'method':'POST',
             "switches":['-b','-p']
         },
         "result":{
-            'url':base_url,
-            'path':"/result/<~~uuid~~>/",
+            'path':"/api/v1/result/<~~uuid~~>/",
             'method':'GET',
             'switches':['-b'],
             'parsers':[
@@ -104,26 +99,22 @@ class Urlscan(Integration):
             ]
         },
         "screenshot":{
-            'url':other_base_url,
             'path':'/screenshots/<~~uuid~~>.png',
             'method':'GET',
             'switches':['-b','-q'],
         },
         "dom":{
-            'url':other_base_url,
             'path':"/dom/<~~uuid~~>/",
             'method':'GET',
             'switches':['-b'],
         },
         "search":{
-            'url':base_url,
-            'path':"/search/?q=<~~uuid~~>",
+            'path':"/api/v1/search/?q=<~~uuid~~>",
             'method':'GET',
             'switches':[''],
         },
-        "dom_similar":{
-            'url':base_url,
-            'path':'/pro/result/<~~uuid~~>/similar/',
+        "dom_similar":{  
+            'path':'/api/v1/pro/result/<~~uuid~~>/similar/',
             'method':'GET',
             'switches':['-b'],
             'parsers':[
@@ -139,8 +130,7 @@ class Urlscan(Integration):
             ]
         },
         "visual_similar":{
-            'url':base_url,
-            'path':'/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
+            'path':'/api/v1/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
             'method':'GET',
             'switches':[],
             'parsers':[
@@ -150,7 +140,6 @@ class Urlscan(Integration):
             ],
         },
         "redirect_use_only":{
-            'url':'',
             'path':'',
             'method':'GET',
             'switches':[],
@@ -210,10 +199,11 @@ class Urlscan(Integration):
             inst = self.instances[instance]
         if inst is not None:
             if inst['options'].get('useproxy', 0) == 1:
-                myproxies = self.get_proxy_str(instance)
+                myproxies = self.retProxy(instance)
             else:
                 myproxies = None
-
+            
+            inst['base_url']=inst['scheme']+"://"+inst['host']
             inst['session']=Session()
             inst['session'].proxies=myproxies
 
@@ -296,10 +286,10 @@ class Urlscan(Integration):
         return 
 
 
-    def buildRequest(self,ep,ep_data):
+    def buildRequest(self,instance,ep,ep_data):
         post_data = None
         method = self.apis[ep.lower()]['method']
-        api_url = self.apis[ep.lower()]['url']+self.apis[ep.lower()]['path']
+        api_url = self.instances[instance]['base_url']+self.apis[ep.lower()]['path']
 
         if method=='POST':
             post_data={"url":ep_data.strip(),"visibility":self.opts['urlscan_submission_visiblity'][0]}
@@ -313,7 +303,7 @@ class Urlscan(Integration):
                 post_data.update({"referer":self.opts['urlscan_submission_referer'][0]})
 
         elif method=='GET':
-            api_url=f"{self.apis[ep.lower()]['url']}{self.apis[ep.lower()]['path']}"
+            api_url=f"{self.instances[instance]['base_url']}{self.apis[ep.lower()]['path']}"
             api_url=api_url.replace('<~~uuid~~>', ep_data.strip())
 
         return method,api_url,post_data
@@ -343,7 +333,7 @@ class Urlscan(Integration):
             A reponse object containing data from URLScan API endpoint
         """
 
-        method, api_url, post_data = self.buildRequest(ep, ep_data)
+        method, api_url, post_data = self.buildRequest(instance, ep, ep_data)
         if self.debug:
             print('!'*20)
             print('Executing request:')
