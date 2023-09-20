@@ -334,13 +334,6 @@ class Urlscan(Integration):
         """
 
         method, api_url, post_data = self.buildRequest(instance, ep, ep_data)
-        if self.debug:
-            print('!'*20)
-            print('Executing request:')
-            print(api_url)
-            print(method)
-            print(post_data)
-            print('!'*20)
 
         while True:
             myres = self.instances[instance]['session'].request(method,api_url,json=post_data)
@@ -370,6 +363,25 @@ class Urlscan(Integration):
                 if polled_response.ok:
                     break
             myres = polled_response
+        if self.debug:
+            print('!'*20)
+            print('Executed request:')
+            print("API URL:")
+            print(api_url)
+            print("METHOD:")
+            print(method)
+            print("POST DATA:")
+            print(post_data)
+            print('!'*20)
+            print()
+            print()
+            print('*'*20)
+            print('Recieved response:')
+            print(f'OK: {str(myres.ok)}')
+            print('Headers:')
+            print(myres.headers)
+            print(f'Content: {str(myres.content[:150])}')
+            print('*'*20)
 
         if not batching:
             if ep!='dom' and ep!='screenshot':#would break responses jsonlib
