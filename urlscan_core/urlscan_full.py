@@ -302,7 +302,7 @@ class Urlscan(Integration):
         return bRun
 
 
-    def display_screenshot(self, content, width, height,quiet=False):
+    def display_screenshot(self, content : bytes, width : int, height : int,quiet : bool = False):
         """
         Parameters
         ----------
@@ -331,7 +331,7 @@ class Urlscan(Integration):
         return b64_img_data
 
 
-    def buildRequest(self,instance,ep,ep_data,map_field=None):
+    def buildRequest(self,instance : str,ep : str,ep_data : str,map_field : str=None):
         post_data = None
         method = self.apis[ep.lower()]['method']
         api_url = self.instances[instance]['base_url']+self.apis[ep.lower()]['path']
@@ -440,7 +440,7 @@ class Urlscan(Integration):
         return self.response_decodes(final_response), final_response.ok, final_response.status_code, final_response.text, final_response.content 
 
 
-    def execute_batch_request(self, instance, ep, data, polling=False):
+    def execute_batch_request(self, instance : str, ep : str, data : str, polling : bool = False):
         """
         Parameters
         ----------
@@ -492,7 +492,7 @@ class Urlscan(Integration):
             
         return results
 
-    def defang_url(self,input):
+    def defang_url(self,input : str):
         return re.sub(r'((?:^|[\'\"])(?:s(?=f))?)[fh](t?tp)',r'\1x\2',input) 
 
     def customQuery(self, query, instance, reconnect=True):
@@ -546,7 +546,7 @@ class Urlscan(Integration):
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=content
 
             # based on the endpoint, process the results
-            if ep.lower() in ['screenshot','dom']: #screenshots and dom don't go in a data frame
+            if ep.lower() in ['screenshot','dom']: #screenshots and dom are processed here
                 print(f"""
                 {ep} command invoked, output put into variables:
                 prev_{self.name_str}_{instance}_raw
@@ -570,10 +570,10 @@ class Urlscan(Integration):
                     if ep=='result' and canDecode:
                         mydf = pd.DataFrame([json.loads(response_text)],index=index)
                         str_err = "Success"
-                    elif canDecode:
+                    elif canDecode: # can decode, we expect scan, searches here
                         mydf = pd.DataFrame(json.loads(response_text),index=index)
                         str_err = "Success"
-                    else:
+                    else: # can't decode the response
                         str_err = f"HTTP:{str(status_code)} - {response_text[:self.opts['urlscan_nodecode_error'][0]]}..."
         except Exception as e:
             mydf = None
