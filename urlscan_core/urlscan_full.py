@@ -80,7 +80,6 @@ class Urlscan(Integration):
             'method':'POST',
             "switches":['-b','-p','--random-ip','--custom-ref','--custom-ua'],
             'decodes':True,
-            'parsers':[],
             'stop_codes':[200,400],
             'post_body':{'url':'<~~replace~~>','visibility':'private','country':'US'},
             'map_field':'url',
@@ -94,25 +93,7 @@ class Urlscan(Integration):
             'method':'GET',
             'switches':['-b'],
             'decodes':True,
-            'stop_codes':[200],
-            'parsers':[
-                ("page","page"),
-                ("uuid","task.uuid"),
-                ("report_url","task.reportURL"),
-                ("verdicts","verdicts.overall"),
-                ("cookies","data.cookies[*].[domain,name,value]"),
-                ("embedded_links","data.links"),
-                ("rdns","meta.processors.rdns.data[]"),
-                ("certificates","lists.certificates[].[subjectName,issuer,validTo]"),
-                ("tls_stats","stats.tlsStats"),
-                ("protocol_stats","stats.protocolStats"),
-                ("global_strings","data.globals[?type=='string'].[prop]"),
-                ("global_functions","data.globals[?type=='function'].[prop]"),
-                ("global_objects","data.globals[?type=='object'].[prop]"),
-                ("global_booleans","data.globals[?type=='boolean'].[prop]"),
-                ("domain_stats","stats.domainStats"),
-                ("submitter","submitter")
-            ]
+            'stop_codes':[200]
         },
         "screenshot":{
             'path':'/screenshots/<~~uuid~~>.png',
@@ -135,8 +116,7 @@ class Urlscan(Integration):
             'method':'GET',
             'switches':[''],
             'decodes':True,
-            'stop_codes':[200],
-            'parsers':[]
+            'stop_codes':[200]
         },
         "dom_similar":{  
             'path':'/api/v1/pro/result/<~~uuid~~>/similar/',
@@ -144,18 +124,7 @@ class Urlscan(Integration):
             'method':'GET',
             'switches':['-b'],
             'decodes':True,
-            'stop_codes':[200],
-            'parsers':[
-                ('page','results[].page'),
-                ('brand','results[].brand'),
-                ('verdicts','results[].verdicts'),
-                ('verdicts','results[].dom'),
-                ('score','results[]._score'),
-                ('text','results[].text'),
-                ('result','results[].result'),
-                ('result','results[].screenshot'),
-                ('id','results[]._id')
-            ]
+            'stop_codes':[200]
         },
         "visual_similar":{
             'path':'/api/v1/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
@@ -163,19 +132,13 @@ class Urlscan(Integration):
             'method':'GET',
             'switches':[],
             'decodes':True,
-            'stop_codes':[200],
-            'parsers':[
-                ('uuid','results[].task.uuid'),
-                ('domain','results[].task.domain'),
-                ('url','results[].task.url'),
-            ]
+            'stop_codes':[200]
         },
         "redirect_use_only":{
             'path':'',
             'method':'GET',
             'switches':[],
-            'decodes':True,
-            'parsers':[]
+            'decodes':True
         },
     }
 
