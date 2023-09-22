@@ -496,16 +496,19 @@ class Urlscan(Integration):
                 results = self.execute_batch_request(instance, ep, ep_data, polling=polling)
             else:
                 canDecode, ok, status_code, response_text,content = self.execute_request(instance, ep, ep_data[0],polling=polling)
+                set_trace()
                 if canDecode: 
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=json.loads(response_text)
-                    if ep=='scan':
-                        index=[0]
-                    elif ep=='scan' and polling:
+                    if ep=='scan' and polling:
                         index=None
                         ep='result'
+                    elif ep=='scan' and not polling:
+                        index=[0]
                     else: index=None
                 else: #can't decode this content without throwing a JSON error, data not appropriate for a pd.DataFrame
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=None
+                
+                
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=content
 
             # based on the endpoint, process the results
