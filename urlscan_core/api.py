@@ -1,6 +1,8 @@
 import requests
+import random
+
 class API:
-    def __init__(self, key : str, host : str = 'urlscan.io', protocol : str = 'https://', port : int = 443, verify : bool = False, proxies : dict = None, debug : bool = False):
+    def __init__(self, key : str, host : str = 'urlscan.io', protocol : str = 'https://', port : int = 443, privacy : str = 'private', verify : bool = False, proxies : dict = None, debug : bool = False):
         self.session = requests.Session()
         self.protocol = protocol
         self.host = host
@@ -9,6 +11,7 @@ class API:
         self.session.proxies = proxies
         self.session.headers = {'Content-Type':'application/json','API-Key':key}
         self.debug = debug
+        self.countries = ["de","us","jp","fr","gb","nl","ca","it","es","se","fi","dk","no","is","au","nz","pl","sg","ge","pt","at","ch"]
 
     def __results(self, method, path, json):
         try:
@@ -38,11 +41,9 @@ class API:
 
     def scan(self, data : str, options : list = []):
         print(f'{self.scan.__name__} called on: {data}')
-        #Take data and craft a request path with appropriate data
         path = f'/api/v1/scan/'
         method='POST'
         payload={'url':data}
-        
         for opt in self.__parse_options(options):
             if opt[0] in ['specific_ip']:
                 payload.update({opt[0]:opt[1]})
@@ -51,8 +52,7 @@ class API:
             if opt[0] in ['custom_ua']:
                 payload.update({'user_agent':opt[1]})
             if opt[0] in ['random_ip']:
-                payload.update({'country_code':opt[1]})
-        
+                payload.update({'country_code':random.choice(self.countries)})
         return self.__results(method, path, json=payload)
 
     def search(self, data : str):
@@ -60,7 +60,13 @@ class API:
         path = f'/api/v1/search/?q={data}'
         method = 'GET'
         payload = None
-        #Take data and craft a request path with appropriate data
+        return self.__results(method, path, json=payload)
+    
+    def visual_search(self, data : str):
+        print(f'{self.visual_search.__name__} called on {data}')
+        path=f'/api/v1/search/?q=visual%3Aminscore-1650%7C{data}' 
+        method = 'GET'
+        payload = None
         return self.__results(method, path, json=payload)
 
     def result(self, data : str):
@@ -69,18 +75,21 @@ class API:
         method = 'GET'
         payload = None
         return self.__results(method, path, json=payload)
+    
+    def dom_search(self, data:str):
+        path=f'/api/v1/pro/result/{data}/similar/'
+        method = 'GET'
+        payload = None
         
-    def screenshot(self, data : str):
+    def get_screenshot(self, data : str):
         print(f'{self.screenshot.__name__} sent with {data}')
-        #Take data and craft a request path with appropriate data
         path = f'/screenshots/{data}.png'
         method = 'GET'
         payload = None
         return self.__results(method, path, json=payload)
     
-    def dom(self, data : str):
+    def get_dom(self, data : str):
         print(f'{self.dom.__name__} called on: {data}')
-        #Take data and craft a request path with appropriate data
         path = f'/dom/{data}/'
         method='GET'
         payload=None

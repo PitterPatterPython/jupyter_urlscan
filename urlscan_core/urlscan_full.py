@@ -31,6 +31,7 @@ import jmespath
 from io import BytesIO
 import base64
 from IPython.core.debugger import set_trace
+from api import API
 
 @magics_class
 class Urlscan(Integration):
@@ -68,82 +69,6 @@ class Urlscan(Integration):
     myopts['urlscan_special_stop_code'] = [[400,429],"Error codes from the web server that a developer may want to respect to take special action."]
     myopts['urlscan_redirect_codes']=[[301,302,308],"Redirect codes that may require special handling by the integration developer"]
 
-    countries = ["de","us","jp","fr","gb","nl","ca","it","es","se","fi","dk","no","is","au","nz","pl","sg","ge","pt","at","ch"]
-
-    """
-    Key:Value pairs here for APIs represent the type? 
-    """
-
-    apis={
-        "scan": {
-            'path':"/api/v1/scan/",
-            'method':'POST',
-            "switches":['-b','-p','--random-ip','--custom-ref','--custom-ua'],
-            'decodes':True,
-            'stop_codes':[200,400],
-            'post_body':{'url':'<~~replace~~>','visibility':'private','country':'US'},
-            'map_field':'url',
-            'polling_ep':'result',
-            'polling_data':'uuid'
-        },
-        "result":{
-            'path':"/api/v1/result/<~~uuid~~>/",
-            'decode':True,
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'switches':['-b'],
-            'decodes':True,
-            'stop_codes':[200]
-        },
-        "screenshot":{
-            'path':'/screenshots/<~~uuid~~>.png',
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'switches':['-b','-q'],
-            'stop_codes':[200],
-            'display':True
-        },
-        "dom":{
-            'path':"/dom/<~~uuid~~>/",
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'stop_codes':[200],
-            'switches':['-b']
-        },
-        "search":{
-            'path':"/api/v1/search/?q=<~~uuid~~>",
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'switches':[''],
-            'decodes':True,
-            'stop_codes':[200]
-        },
-        "dom_similar":{  
-            'path':'/api/v1/pro/result/<~~uuid~~>/similar/',
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'switches':['-b'],
-            'decodes':True,
-            'stop_codes':[200]
-        },
-        "visual_similar":{
-            'path':'/api/v1/search/?q=visual%3Aminscore-1650%7C<~~uuid~~>',
-            'replace_me':'<~~uuid~~>',
-            'method':'GET',
-            'switches':[],
-            'decodes':True,
-            'stop_codes':[200]
-        },
-        "redirect_use_only":{
-            'path':'',
-            'method':'GET',
-            'switches':[],
-            'decodes':True
-        },
-    }
-
-
-
     # Class Init function - Obtain a reference to the get_ipython()
     def __init__(self, shell, debug=False, *args, **kwargs):
         super(Urlscan, self).__init__(shell, debug=debug)
@@ -151,7 +76,7 @@ class Urlscan(Integration):
         #Add local variables to opts dict
         for k in self.myopts.keys():
             self.opts[k] = self.myopts[k]
-
+        self.API_CALLS = list(filter(lambda x : not x.startwith('_') , dir(API)))
         self.load_env(self.custom_evars)
         self.parse_instances()
 #######################################
@@ -459,6 +384,8 @@ class Urlscan(Integration):
         return re.sub(r'((?:^|[\'\"])(?:s(?=f))?)[fh](t?tp)',r'\1x\2',input) 
 
     def customQuery(self, query, instance, reconnect=True):
+        #TODO - integrate new API definitions and response definitions into this framework
+
         ep, ep_data, eps = self.parse_query(query)
         ep_api = self.apis.get(ep, None)
 
