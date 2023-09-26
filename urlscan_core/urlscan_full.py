@@ -61,7 +61,7 @@ class Urlscan(Integration):
     myopts['urlscan_resultready_wait_attempts']=[6, "How many times to poll results before giving up."]
     myopts['urlscan_ssdisplay_height'] = [1200, "how many pixels wide for displaying an image"]
     myopts['urlscan_ssdisplay_width'] = [850, "how many pixels wide for screenshots for displaying an image"]
-    myopts['urlscan_submission_visiblity'] = ["private", "Default visiblity for submissions to URLScan."]
+    myopts['urlscan_submission_privacy'] = ["private", "Default visiblity for submissions to URLScan."]
     myopts['urlscan_submission_country'] = ["US","The country from which the scan should be performed"]
     myopts['urlscan_submission_referer'] = [None, "Override the HTTP referer for this scan"]
     myopts['urlscan_submission_useragent'] = [None, "Override useragent for this scan"]
