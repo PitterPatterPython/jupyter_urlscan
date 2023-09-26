@@ -87,7 +87,7 @@ class API:
         payload = None
         
     def get_screenshot(self, data : str):
-        """{"switches":["-q"],"display":True}"""
+        """{"switches":["-q"],"display":true}"""
         print(f'{self.get_screenshot.__name__} sent with {data}')
         path = f'/screenshots/{data}.png'
         method = 'GET'
