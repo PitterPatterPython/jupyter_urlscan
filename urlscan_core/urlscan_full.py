@@ -31,7 +31,7 @@ import jmespath
 from io import BytesIO
 import base64
 from IPython.core.debugger import set_trace
-from api import API
+from urlscan_core.api import API
 
 @magics_class
 class Urlscan(Integration):
