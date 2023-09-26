@@ -48,7 +48,7 @@ class API:
         path = f'/api/v1/scan/'
         method='POST'
         payload={'url':data}
-        payload.udpate({'country_code':country_code[:2]})
+        payload.update({'country_code':country_code[:2]})
         if custom_ref:
             payload.update({'referer':custom_ref[:1024]})
         if custom_ua:
