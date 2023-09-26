@@ -179,10 +179,11 @@ class Urlscan(Integration):
                 print("Submitting due to rerun")
                 bRun = True
 
-        if not set(eps).issubset(set(json.loads(getattr(API,ep).__doc__)['switches'])):
-            bRun = False
-            print(f"Error: {self.name_str} Instance: {instance} Endpoint: {ep} does not support switch {eps}")
-            print(f"Supported switches: {json.loads(getattr(API,ep).__doc__)['switches']}")
+        if hasattr(API,ep):
+            if not set(eps).issubset(set(json.loads(getattr(API,ep).__doc__)['switches'])):
+                bRun = False
+                print(f"Error: {self.name_str} Instance: {instance} Endpoint: {ep} does not support switch {eps}")
+                print(f"Supported switches: {json.loads(getattr(API,ep).__doc__)['switches']}")
 
         return bRun
 
