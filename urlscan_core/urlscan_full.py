@@ -30,8 +30,8 @@ from time import strftime, localtime, sleep
 import jmespath
 from io import BytesIO
 import base64
-from IPython.core.debugger import set_trace
 from urlscan_core.api import API
+#from IPython.core.debugger import set_trace
 
 @magics_class
 class Urlscan(Integration):
@@ -396,7 +396,6 @@ class Urlscan(Integration):
         try:
             endpoint_doc = json.loads(getattr(API,ep).__doc__)
             # make the request(s) to API, get results
-            set_trace()
             if batch:
                 results = self.execute_batch_request(instance, ep, ep_data,endpoint_doc, polling=polling)
             else:
