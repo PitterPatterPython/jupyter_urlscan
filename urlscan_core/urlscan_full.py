@@ -180,7 +180,7 @@ class Urlscan(Integration):
                 bRun = True
 
         if hasattr(API,ep):
-            if not set(eps).issubset(set(json.loads(getattr(API,ep).__doc__)['switches'])):
+            if not set(eps).issubset(set(json.loads(getattr(API,ep).__doc__).get('switches'))):
                 bRun = False
                 print(f"Error: {self.name_str} Instance: {instance} Endpoint: {ep} does not support switch {eps}")
                 print(f"Supported switches: {json.loads(getattr(API,ep).__doc__)['switches']}")
