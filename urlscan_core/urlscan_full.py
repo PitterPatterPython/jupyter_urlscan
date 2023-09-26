@@ -416,7 +416,7 @@ class Urlscan(Integration):
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=content
 
             # based on the endpoint, process the results
-            if ep.lower() in ['screenshot','dom']: #screenshots and dom are processed here
+            if ep.lower() in ['get_screenshot','get_dom']: #screenshots and dom are processed here
                 print(f"""
                 {ep} command invoked, output put into variables:
                 prev_{self.name_str}_{instance}_raw
