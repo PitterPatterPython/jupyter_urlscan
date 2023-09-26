@@ -137,7 +137,10 @@ class Urlscan(Integration):
                     ssl_verify = True
                 else:
                     ssl_verify = False
-            inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', port=inst['port'], privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
+            if inst['port']:
+                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', port=inst['port'], privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
+            else:
+                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
             result = 0
         return result
 
