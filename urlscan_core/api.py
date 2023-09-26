@@ -48,11 +48,11 @@ class API:
         path = f'/api/v1/scan/'
         method='POST'
         payload={'url':data}
-        payload.update({'country_code':country_code[:2]})
+        payload.update({'country':country_code[:2]})
         if custom_ref:
             payload.update({'referer':custom_ref[:1024]})
         if custom_ua:
-            payload.update({'user_agent':custom_ua[:1024]})
+            payload.update({'customagent':custom_ua[:1024]})
         return self.__results(method, path, json=payload)
 
     def search(self, data : str):
