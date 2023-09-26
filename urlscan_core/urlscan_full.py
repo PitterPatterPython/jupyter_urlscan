@@ -76,7 +76,7 @@ class Urlscan(Integration):
         #Add local variables to opts dict
         for k in self.myopts.keys():
             self.opts[k] = self.myopts[k]
-        self.API_CALLS = list(filter(lambda func : not '_' in func and hasattr(getattr(API,func),'__call__') , dir(API)))
+        self.API_CALLS = list(filter(lambda func : not func.startswith('_') and hasattr(getattr(API,func),'__call__') , dir(API)))
         self.load_env(self.custom_evars)
         self.parse_instances()
 #######################################
