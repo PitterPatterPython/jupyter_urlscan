@@ -399,11 +399,11 @@ class Urlscan(Integration):
         try:
             endpoint_doc = json.loads(getattr(API,ep).__doc__)
             # make the request(s) to API, get results
+            set_trace()
             if batch:
                 results = self.execute_batch_request(instance, ep, ep_data,endpoint_doc, polling=polling)
             else:
                 canDecode, ok, status_code, response_text,content = self.execute_request(instance, ep, ep_data[0],endpoint_doc,polling=polling)
-                set_trace()
                 if canDecode: 
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=json.loads(response_text)
                     if ep=='scan' and polling:
