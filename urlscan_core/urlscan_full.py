@@ -289,12 +289,6 @@ class Urlscan(Integration):
             last_response = None
             for i in range(0,limit):
                 response = getattr(self.instances[instance]['session'],ep)(data)
-                if self.debug:
-                    print("debugging polling!")
-                    print(response.ok)
-                    print(response.url)
-                    print(method)
-                    print(data)
                 last_response = response
                 if response.status_code in self.opts['urlscan_special_stop_code'][0]:
                     break
