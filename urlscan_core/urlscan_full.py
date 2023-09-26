@@ -366,15 +366,14 @@ class Urlscan(Integration):
     def defang_url(self,input : str):
         return re.sub(r'((?:^|[\'\"])(?:s(?=f))?)[fh](t?tp)',r'\1x\2',input) 
 
-    def customQuery(self, query, instance, reconnect=True):
-        #TODO - integrate new API definitions and response definitions into this framework
-
+    def customQuery(self, query, instance):
         ep, ep_data, eps = self.parse_query(query)
 
         if self.debug:
             print(f"Endpoint: {ep}")
             print(f"Endpoint Data: {ep_data}")
             print(f"Endpoint Switches: {eps}")
+            print(f"Endpoints available: {self.API_CALLS}")
 
         mydf = None
         status = ""
