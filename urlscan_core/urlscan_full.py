@@ -76,7 +76,7 @@ class Urlscan(Integration):
         #Add local variables to opts dict
         for k in self.myopts.keys():
             self.opts[k] = self.myopts[k]
-        self.API_CALLS = list(filter(lambda x : not x.startwith('_') , dir(API)))
+        self.API_CALLS = list(filter(lambda func : not '_' in func and hasattr(getattr(API,func),'__call__') , dir(API)))
         self.load_env(self.custom_evars)
         self.parse_instances()
 #######################################
@@ -123,14 +123,9 @@ class Urlscan(Integration):
             else:
                 myproxies = None
             
-            inst['base_url']=inst['scheme']+"://"+inst['host']
-            inst['session']=Session()
-            inst['session'].proxies=myproxies
-
             mypass = ""
             if inst['enc_pass'] is not None:
                 mypass = self.ret_dec_pass(inst['enc_pass'])
-                inst['session'].headers.update({'API-Key':mypass})
             ssl_verify = self.opts['urlscan_verify_ssl'][0]
             if isinstance(ssl_verify, str) and ssl_verify.strip().lower() in ['true', 'false']:
                 if ssl_verify.strip().lower() == 'true':
@@ -142,8 +137,7 @@ class Urlscan(Integration):
                     ssl_verify = True
                 else:
                     ssl_verify = False
-
-            inst['session'].verify=self.opts['urlscan_verify_ssl'][0]
+            inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', port=inst['port'], privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
             result = 0
         return result
 
@@ -175,17 +169,17 @@ class Urlscan(Integration):
         inst = self.instances[instance]
         ep, ep_vars, eps = self.parse_query(query)
 
-        if ep not in self.apis.keys():
-            print(f"Endpoint: {ep} not in available APIs: {self.apis.keys()}")
+        if ep not in self.API_CALLS:
+            print(f"Endpoint: {ep} not in available APIs: {self.API_CALLS}")
             bRun = False
             if bReRun:
                 print("Submitting due to rerun")
                 bRun = True
 
-        if not set(eps).issubset(self.apis[ep]['switches']):
+        if not set(eps).issubset(set(json.loads(getattr(API,ep).__doc__))['switches']):
             bRun = False
-            print(f"Endpoint: {ep} does not support switch {eps}")
-            print(f"Supported switches: {self.apis[ep]['switches']}")
+            print(f"Error: {self.name_str} Instance: {instance} Endpoint: {ep} does not support switch {eps}")
+            print(f"Supported switches: {json.loads(getattr(API,ep).__doc__)['switches']}")
 
         return bRun
 
@@ -219,21 +213,6 @@ class Urlscan(Integration):
         return b64_img_data
 
 
-    def buildRequest(self,instance : str,ep : str,ep_data : str,map_field : str=None):
-        post_data = None
-        method = self.apis[ep.lower()]['method']
-        api_url = self.instances[instance]['base_url']+self.apis[ep.lower()]['path']
-
-        if method=='POST':
-            post_data=self.apis[ep].get('post_body',None)
-            post_data.update({map_field:ep_data})
-
-        elif method=='GET':
-            api_url=f"{self.instances[instance]['base_url']}{self.apis[ep.lower()]['path']}"
-            api_url=api_url.replace(self.apis[ep.lower()].get('replace_me'), ep_data.strip())
-
-        return method,api_url,post_data
-
     def response_decodes(self, response : Response):
         try:        
             response.json()
@@ -253,7 +232,7 @@ class Urlscan(Integration):
             print("If this request was a 'private' submission, you can switch to use 'unlisted' to work around this quota.")
         return 
 
-    def execute_request(self, instance : str, ep : str, data : str, polling : bool = False):
+    def execute_request(self, instance : str, ep : str, data : str, endpoint_doc : dict, polling : bool = False):
         """
         Description
         -----------
@@ -284,13 +263,12 @@ class Urlscan(Integration):
         content : bytes - raw bytes as provided by the interacting web server
         """
 
-        method, api_url, post_data = self.buildRequest(instance, ep, data,map_field=self.apis[ep].get('map_field',None))
         final_response=None
         try:
-            response = self.instances[instance]['session'].request(method,api_url,json=post_data)
+            response = getattr(self.instances[instance]['session'],ep)(data)
             final_response = response
         except Exception as e:
-            print(f"An error occured while performing {method} on {api_url} with {post_data}\n{str(e)}")
+            print(f"An error occured while performing {ep} with {data}\n{str(e)}")
             return False, False, None, None, None
         
         if polling and response.ok:
@@ -301,34 +279,36 @@ class Urlscan(Integration):
                 after each submission to ask {str(self.name_str)} if the results are ready for a 
                 maximum of {limit} attempts...
             """)
-            data = response.json().get(self.apis[ep].get('polling_data',data)) #change the data if necessary to get the result
-            ep = self.apis[ep].get('polling_ep',ep) #change the endpoint if necessary to get the result
-            method, api_url, post_data = self.buildRequest(instance, ep, data,self.apis[ep].get('map_field',None))
+            # Does this polling endpoint require specific data to poll for response?
+            data = response.json().get(endpoint_doc.get('polling_data'),data) 
+            # does this polling endpoint require a change in API function to poll for response?
+            ep = endpoint_doc.get('polling_endpoint',ep)
             last_response = None
             for i in range(0,limit):
-                response = self.instances[instance]['session'].request(method,api_url,json=post_data)
+                response = getattr(self.instances[instance]['session'],ep)(data)
                 if self.debug:
                     print("debugging polling!")
                     print(response.ok)
                     print(response.url)
                     print(method)
-                    print(post_data)
+                    print(data)
                 last_response = response
                 if response.status_code in self.opts['urlscan_special_stop_code'][0]:
                     break
                 if response.status_code in self.opts['urlscan_redirect_codes'][0]:
                     method='GET'
                     api_url=response.headers.get('Location')
-                    post_data=None
                     wait = self.opts['urlscan_redirect_wait'][0]
+                    response = getattr(API,'get_redirect')(api_url)
+                    last_response=response
                     #check for statuscode stop condition
-                if response.ok or response.status_code in self.apis[ep].get('stop_codes'): break
+                if response.ok: break
                 sleep(wait)
             final_response=last_response
         return self.response_decodes(final_response), final_response.ok, final_response.status_code, final_response.text, final_response.content 
 
 
-    def execute_batch_request(self, instance : str, ep : str, data : str, polling : bool = False):
+    def execute_batch_request(self, instance : str, ep : str, data : str, endpoint_doc : dict , polling : bool = False):
         """
         Parameters
         ----------
@@ -353,7 +333,7 @@ class Urlscan(Integration):
             if self.debug:
                 print(f"Batch processing, running: {post_data}")
 
-            canDecode, status, status_code, response_text,content = self.execute_request(instance,ep,post_data,polling=polling)
+            canDecode, status, status_code, response_text,content = self.execute_request(instance,ep,post_data,endpoint_doc,polling=polling)
             if not status: #filter out anything that isn't a valid 200 response with parsable data from the API
                 #at least prompt the user
                 print(f'Failure to retrieve sample: {post_data} - Status Code: {str(status_code)}')
@@ -387,7 +367,6 @@ class Urlscan(Integration):
         #TODO - integrate new API definitions and response definitions into this framework
 
         ep, ep_data, eps = self.parse_query(query)
-        ep_api = self.apis.get(ep, None)
 
         if self.debug:
             print(f"Endpoint: {ep}")
@@ -418,11 +397,12 @@ class Urlscan(Integration):
             polling=True
 
         try:
+            endpoint_doc = json.loads(getattr(API,ep).__doc__)
             # make the request(s) to API, get results
             if batch:
-                results = self.execute_batch_request(instance, ep, ep_data, polling=polling)
+                results = self.execute_batch_request(instance, ep, ep_data,endpoint_doc, polling=polling)
             else:
-                canDecode, ok, status_code, response_text,content = self.execute_request(instance, ep, ep_data[0],polling=polling)
+                canDecode, ok, status_code, response_text,content = self.execute_request(instance, ep, ep_data[0],endpoint_doc,polling=polling)
                 set_trace()
                 if canDecode: 
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=json.loads(response_text)
@@ -445,7 +425,7 @@ class Urlscan(Integration):
                 prev_{self.name_str}_{instance}_raw
                 prev_{self.name_str}_{instance}_dict
                 """)
-                if self.apis[ep].get('display',False):
+                if endpoint_doc.get('display',False):
                     if batch:
                         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=[]
                         for resp in results:
