@@ -32,6 +32,7 @@ from io import BytesIO
 import base64
 from urlscan_core.api import API
 #from IPython.core.debugger import set_trace
+requests.packages.urllib3.disable_warnings()
 
 @magics_class
 class Urlscan(Integration):
