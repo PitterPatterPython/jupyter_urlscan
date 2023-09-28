@@ -43,7 +43,7 @@ class API:
         return parsed_options
 
     def scan(self, data : str, country_code : str = "US", custom_ua : str = None, custom_ref : str = None):
-        """{"switches":["-q","-p"],"polling_endpoint":"result","polling_data":"uuid"}"""
+        """{"switches":["-p"],"polling_endpoint":"result","polling_data":"uuid"}"""
         print(f'{self.scan.__name__} called on: {data}')
         path = f'/api/v1/scan/'
         method='POST'
