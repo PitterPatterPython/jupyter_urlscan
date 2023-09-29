@@ -15,6 +15,7 @@ from IPython.core.display import HTML
 from io import StringIO
 from requests import Session, JSONDecodeError
 from requests.models import Response
+from requests.packages import urllib3
 
 from urlscan_core._version import __desc__
 from jupyter_integrations_utility.batchquery import df_expand_col
@@ -32,7 +33,7 @@ from io import BytesIO
 import base64
 from urlscan_core.api import API
 #from IPython.core.debugger import set_trace
-requests.packages.urllib3.disable_warnings()
+urllib3.disable_warnings()
 
 @magics_class
 class Urlscan(Integration):
