@@ -129,8 +129,8 @@ class Urlscan(Integration):
             if inst['enc_pass'] is not None:
                 mypass = self.ret_dec_pass(inst['enc_pass'])
             ssl_verify = self.opts['urlscan_verify_ssl'][0]
-            if isinstance(ssl_verify, str) and ssl_verify.strip().lower() in ['true', 'false']:
-                if ssl_verify.strip().lower() == 'true':
+            if isinstance(ssl_verify, str) and ssl_verify.strip().lower() in ['true', 'false','1','0']:
+                if ssl_verify.strip().lower() in ['true','1']:
                     ssl_verify = True
                 else:
                     ssl_verify = False
