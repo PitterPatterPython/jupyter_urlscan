@@ -44,7 +44,7 @@ class API:
 
     def scan(self, data : str, country_code : str = "US", custom_ua : str = None, custom_ref : str = None):
         """{"switches":["-p"],"polling_endpoint":"result","polling_data":"uuid"}"""
-        print(f'{self.scan.__name__} called on: {data}')
+        print(f'{self.scan.__name__} called on: {str(data).replace("http","meow")}')
         path = f'/api/v1/scan/'
         method='POST'
         payload={'url':data}
