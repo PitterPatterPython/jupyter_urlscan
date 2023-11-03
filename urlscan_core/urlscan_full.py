@@ -272,6 +272,9 @@ class Urlscan(Integration):
         final_response=None
         try:
             response = getattr(self.instances[instance]['session'],ep)(data)
+            if self.debug:
+                print('request headers:')
+                print(response.request.headers)
             final_response = response
         except Exception as e:
             print(f"An error occured while performing {ep} with {data}\n{str(e)}")
