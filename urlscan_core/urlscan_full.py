@@ -332,21 +332,21 @@ class Urlscan(Integration):
         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=[]
         
         for post_data in data:
+            sample = self.defang_url(post_data)
             sleep(self.opts['urlscan_batchsubmit_wait_time'][0])
             if self.debug:
-                print(f"Batch processing, running: {post_data}")
+                print(f"Batch processing, running: {sample}")
 
             canDecode, status, status_code, response_text,content = self.execute_request(instance,ep,post_data,endpoint_doc,polling=polling)
             if not status: #filter out anything that isn't a valid 200 response with parsable data from the API
                 #at least prompt the user
-                print(f'Failure to retrieve sample: {post_data} - Status Code: {str(status_code)}')
+                print(f'Failure to retrieve sample: {sample} - Status Code: {str(status_code)}')
                 print(f"{response_text[:self.opts['urlscan_batchsubmit_error_concat'][0]]}...")
                 print('Skipping...')
                 continue
             else:
                 #These responses should be parsed, and added routed back to the user in an appropriate means
                 try:
-                    sample = self.defang_url(post_data)
                     if canDecode:
                         sample_data = json.loads(response_text)
                         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({sample:sample_data})
@@ -357,10 +357,9 @@ class Urlscan(Integration):
                         results.append({'sample':sample,'_raw':content})
                 except Exception as e:
                     print(f"Error occured while parsing Response to 'dict' {str(e)}")
-                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({self.defang_url(post_data):None})
+                    self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict'].update({sample:None})
                     pass
-                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].append({self.defang_url(post_data):content})
-            
+                self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw'].append({sample:content})
         return results
 
     def defang_url(self,input : str):
@@ -415,8 +414,6 @@ class Urlscan(Integration):
                     else: index=None
                 else: #can't decode this content without throwing a JSON error, data not appropriate for a pd.DataFrame
                     self.ipy.user_ns[f'prev_{self.name_str}_{instance}_dict']=None
-                
-                
                 self.ipy.user_ns[f'prev_{self.name_str}_{instance}_raw']=content
 
             # based on the endpoint, process the results
