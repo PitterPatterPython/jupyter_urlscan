@@ -418,12 +418,11 @@ class Urlscan(Integration):
 
             # based on the endpoint, process the results
             if ep.lower() in ['get_screenshot','get_dom']: #screenshots and dom are processed here
-                print(f"""
-                {ep} command invoked, output put into variables:
-                prev_{self.name_str}_{instance}_raw
-                prev_{self.name_str}_{instance}_dict
-                """)
                 if endpoint_doc.get('display',False):
+                    print(f"""
+                    The following variable represents an array contains bas64 strings representing the images:
+                    prev_{self.name_str}_{instance}_img
+                    """)
                     if batch:
                         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=[]
                         for resp in results:
@@ -432,6 +431,12 @@ class Urlscan(Integration):
                     else:
                         b64 = self.display_screenshot(content,self.opts['urlscan_ssdisplay_width'][0], self.opts['urlscan_ssdisplay_height'][0],quiet=quiet)
                         self.ipy.user_ns[f'prev_{self.name_str}_{instance}_img']=b64
+                else:
+                    print(f"""
+                    {ep} command invoked, output put into variables:
+                    prev_{self.name_str}_{instance}_raw
+                    prev_{self.name_str}_{instance}_dict
+                    """)
                 str_err = "Success - No Results"
             else: # ep was scan, result, search, or visual_search
                 if batch:
