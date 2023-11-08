@@ -104,7 +104,7 @@ class Urlscan(Integration):
         qexamples.append(["","get_dom \na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve DOM source code for the submission associated to it."])
         qexamples.append(["","result \na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to retrieve results from URLScan for the submission associated to it."])
         qexamples.append(["","get_screenshot \na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID to get a screenshot of the current disposition of the website."])
-        qexamples.append(["","search -b\ndomain:svb.com OR domain:silvergate.com","Provide a valid search string to query URLScan's Elastic backend: https://urlscan.io/docs/search/".])        
+        qexamples.append(["","search -b\ndomain:svb.com OR domain:silvergate.com","Provide a valid search string to query URLScan's Elastic backend: https://urlscan.io/docs/search/."])        
         qexamples.append(["","visual_search \na353d4c9-2fa1-4b9b-8919-08ac1db9772a","Provide a UUID of a given submission to retrieve other visually similar submissions to URLScan."])
         out += self.retQueryHelp(qexamples)
 
