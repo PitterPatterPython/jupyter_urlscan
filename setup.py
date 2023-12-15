@@ -25,7 +25,7 @@ with open(pjoin(here, integration_str + '_core', '_version.py')) as f:
     exec(f.read(), {}, version_ns)
 
 integration_base_ver_min = '0.1.0'
-
+"""
 try:
     import integration_core
 except:
@@ -35,7 +35,7 @@ except:
 if integration_core.__version__ < integration_base_ver_min:
     print("jupyter_%s requires jupyter_integration_base version %s or higher. You are on version %s. Please update" % (integration_str, integration_base_ver_min, integration_core.__version__))
     sys.exit(1)
-
+"""
 setup_args = dict(
     name='jupyter_' + integration_str,
     packages=[integration_str + '_core'],
