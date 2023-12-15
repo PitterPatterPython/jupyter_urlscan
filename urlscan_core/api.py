@@ -17,7 +17,7 @@ class API:
         self.debug = debug
         self.countries = list(filter(lambda code : code.upper(),["de","us","jp","fr","gb","nl","ca","it","es","se","fi","dk","no","is","au","nz","pl","sg","ge","pt","at","ch"]))
 
-    def __results(self, method, path, json):
+    def __results(self, method, path, json_payload):
         try:
             if 'http' in path and '://' in path:
                 full_url = path
@@ -29,8 +29,8 @@ class API:
             print(str(e))
         finally:
             if self.debug:
-                print(f'Attempted {method} to path {path} with data {json}')
-        response =  self.session.request(method, full_url, json=json)
+                print(f'Attempted {method} to path {path} with data {json_payload}')
+        response =  self.session.request(method, full_url, json_payload=json_payload)
         if response.json().get('has_more') and '/search/' in full_url:
             full_results = {'results':[]}
             for iteration in range(0,self.pagination_limit):   
@@ -38,7 +38,7 @@ class API:
                 full_url = re.sub(r'\&search_after=\d+\,[a-f0-9]{8}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{12}','',response.url)
                 full_url = full_url+'&search_after='+oldest_item
                 method='GET'
-                response=self.session.request(method,full_url,json=None)
+                response=self.session.request(method,full_url,json_payload=None)
                 if response.status_code==200:
                     full_results['results'] = full_results['results'] + response.json()['results']
                 else:
@@ -82,7 +82,7 @@ class API:
             payload.update({'referer':custom_ref[:1024]})
         if custom_ua:
             payload.update({'customagent':custom_ua[:1024]})
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
 
     def search(self, data : str):
         """{"switches":[]}"""
@@ -90,7 +90,7 @@ class API:
         path = f'/api/v1/search/?q={data}&size={str(self.search_limit)}'
         method = 'GET'
         payload = None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
     
     def visual_search(self, data : str):
         """{"switches":[]}"""
@@ -98,7 +98,7 @@ class API:
         path=f'/api/v1/search/?q=visual%3Aminscore-1650%7C{data}&size={str(self.search_limit)}' 
         method = 'GET'
         payload = None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
 
     def result(self, data : str):
         """{"switches":[]}"""
@@ -106,7 +106,7 @@ class API:
         path = f'/api/v1/result/{data}/'
         method = 'GET'
         payload = None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
     
     def dom_search(self, data:str):
         print(f'{self.dom_search.__name__} sent with {data}')
@@ -114,7 +114,7 @@ class API:
         path=f'/api/v1/pro/result/{data}/similar/'
         method = 'GET'
         payload = None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
         
     def get_screenshot(self, data : str):
         """{"switches":["-q"],"display":true}"""
@@ -122,7 +122,7 @@ class API:
         path = f'/screenshots/{data}.png'
         method = 'GET'
         payload = None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
     
     def get_dom(self, data : str):
         """{"switches":[]}"""
@@ -130,11 +130,11 @@ class API:
         path = f'/dom/{data}/'
         method='GET'
         payload=None
-        return self.__results(method, path, json=payload)
+        return self.__results(method, path, json_payload=payload)
     
     def get_redirect(self, url):
         """{"switches":[]}"""
         print(f'{self.get_redirect.__name__} called on: {url}')
         method = 'GET'
         payload = None
-        return self.__results(method, url, json=payload)
+        return self.__results(method, url, json_payload=payload)
