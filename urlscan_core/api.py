@@ -46,10 +46,13 @@ class API:
                 if iteration==(self.pagination_limit-1):
                     print('Max pagination hit')
                     if response.json().get('has_more'):
-                        print('Change the JUPYTER_URLSCAN_PAG_HARDDECK variable to increase the number of iterations to get results')
+                        print('Change the "urlscan_pagination_limit"s variable to increase the number of iterations to get results')
                         print(f'Current ({self.pagination_limit})')
                         print("There are more results in the URLScan.io portal!")
-            return full_results
+    
+            final_response = response #only hte most recent response attributes
+            final_response._content = json.dumps(full_results).encode('utf-8') #change content to aggregated of all responses
+            return final_response
         else:
             return response
 
