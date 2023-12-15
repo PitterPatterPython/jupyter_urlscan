@@ -37,7 +37,7 @@ class API:
                 full_url = re.sub(r'\&search_after=\d+\,[a-f0-9]{8}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{12}','',response.url)
                 full_url = full_url+'&search_after='+oldest_item
                 method='GET'
-                response=s.request(method,full_url,json=None)
+                response=self.session.request(method,full_url,json=None)
                 if response.status_code==200:
                     full_results['results'] = full_results['results'] + response.json()['results']
                 else:
