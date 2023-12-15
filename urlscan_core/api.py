@@ -1,8 +1,9 @@
 import requests
 import random
+import re
 
 class API:
-    def __init__(self, key : str, host : str = 'urlscan.io', protocol : str = 'https://', port : int = 443, privacy : str = 'private', verify : bool = False, proxies : dict = None, debug : bool = False):
+    def __init__(self, key : str, host : str = 'urlscan.io', protocol : str = 'https://', port : int = 443, privacy : str = 'private', verify : bool = False, proxies : dict = None, pagination_limit : int = 5, search_limit : int = 10000, debug : bool = False):
         self.session = requests.Session()
         self.protocol = protocol
         self.host = host
@@ -10,6 +11,8 @@ class API:
         self.session.verify = verify
         self.session.proxies = proxies
         self.session.headers = {'Content-Type':'application/json','API-Key':key}
+        self.pagination_limit=pagination_limit
+        self.search_limit = search_limit
         self.debug = debug
         self.countries = list(filter(lambda code : code.upper(),["de","us","jp","fr","gb","nl","ca","it","es","se","fi","dk","no","is","au","nz","pl","sg","ge","pt","at","ch"]))
 
@@ -26,7 +29,29 @@ class API:
         finally:
             if self.debug:
                 print(f'Attempted {method} to path {path} with data {json}')
-        return self.session.request(method, full_url, json=json)
+        response =  self.session.request(method, full_url, json=json)
+        if response.json().get('has_more') and '/search/' in full_url:
+            full_results = {'results':[]}
+            for iteration in range(0,self.pagination_limit):   
+                oldest_item = re.sub(r'[\'\s\[\]]','',str(response.json()['results'][-1]['sort']))
+                full_url = re.sub(r'\&search_after=\d+\,[a-f0-9]{8}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{12}','',response.url)
+                full_url = full_url+'&search_after='+oldest_item
+                method='GET'
+                response=s.request(method,full_url,json=None)
+                if response.status_code==200:
+                    full_results['results'] = full_results['results'] + response.json()['results']
+                else:
+                    print(response.json())
+                    break
+                if iteration==(self.pagination_limit-1):
+                    print('Max pagination hit')
+                    if response.json().get('has_more'):
+                        print('Change the JUPYTER_URLSCAN_PAG_HARDDECK variable to increase the number of iterations to get results')
+                        print(f'Current ({self.pagination_limit})')
+                        print("There are more results in the URLScan.io portal!")
+            return full_results
+        else:
+            return response
 
     def __parse_options(self, options : list):
         parsed_options = []
@@ -58,7 +83,7 @@ class API:
     def search(self, data : str):
         """{"switches":[]}"""
         print(f'{self.search.__name__} called on: {data}')
-        path = f'/api/v1/search/?q={data}'
+        path = f'/api/v1/search/?q={data}&size={str(self.search_limit)}'
         method = 'GET'
         payload = None
         return self.__results(method, path, json=payload)
@@ -66,7 +91,7 @@ class API:
     def visual_search(self, data : str):
         """{"switches":[]}"""
         print(f'{self.visual_search.__name__} called on {data}')
-        path=f'/api/v1/search/?q=visual%3Aminscore-1650%7C{data}' 
+        path=f'/api/v1/search/?q=visual%3Aminscore-1650%7C{data}&size={str(self.search_limit)}' 
         method = 'GET'
         payload = None
         return self.__results(method, path, json=payload)
@@ -85,6 +110,7 @@ class API:
         path=f'/api/v1/pro/result/{data}/similar/'
         method = 'GET'
         payload = None
+        return self.__results(method, path, json=payload)
         
     def get_screenshot(self, data : str):
         """{"switches":["-q"],"display":true}"""

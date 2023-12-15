@@ -58,6 +58,8 @@ class Urlscan(Integration):
     myopts['urlscan_batchsubmit_wait_time'] = [2, "Seconds between batch HTTP requests"]
     myopts['urlscan_batchsubmit_max_file_load'] = [100, "The number of submissions"]
     myopts['urlscan_batchsubmit_error_concat'] = [100, "The length of error messages printed during batchsubmission processing"]
+    myopts['urlscan_pagination_limit'] = [5, "How many iterations to collect results"]
+    myopts['urlscan_searchresult_limit'] = [10000, "The maxiumum number of results recovered from URLScan. Limit is 10k."]
     myopts['urlscan_redirect_wait'] = [5, "Seconds to wait on HTTP30X redirect"]
     myopts['urlscan_resultready_wait_time']=[6, "Seconds between submission and result polling"]
     myopts['urlscan_resultready_wait_attempts']=[6, "How many times to poll results before giving up."]
@@ -144,9 +146,9 @@ class Urlscan(Integration):
                 else:
                     ssl_verify = False
             if inst['port']:
-                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', port=inst['port'], privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
+                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', port=inst['port'], privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,pagination_limit=self.myopts['urlscan_pagination_limit'][0],search_limit=self.myopts['urlscan_searchresult_limit'][0],debug=self.debug)
             else:
-                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,debug=self.debug)
+                inst['session'] = API(key=mypass,host=inst['host'],protocol=inst['scheme']+'://', privacy=self.opts['urlscan_submission_privacy'][0], proxies=myproxies,verify=ssl_verify,pagination_limit=self.myopts['urlscan_pagination_limit'][0],search_limit=self.myopts['urlscan_searchresult_limit'][0],debug=self.debug)
             result = 0
         return result
 
