@@ -1,6 +1,7 @@
 import requests
 import random
 import re
+import json
 
 class API:
     def __init__(self, key : str, host : str = 'urlscan.io', protocol : str = 'https://', port : int = 443, privacy : str = 'private', verify : bool = False, proxies : dict = None, pagination_limit : int = 5, search_limit : int = 10000, debug : bool = False):
