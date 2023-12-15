@@ -51,7 +51,7 @@ class API:
                         print("There are more results in the URLScan.io portal!")
     
             final_response = response #only hte most recent response attributes
-            final_response._content = json.dumps(full_results).encode('utf-8') #change content to aggregated of all responses
+            final_response._content = json.dumps(full_results).encode('utf-8') #change content to aggregated of all responses.json()['results']
             return final_response
         else:
             return response
